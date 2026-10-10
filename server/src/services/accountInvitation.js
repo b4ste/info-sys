@@ -1,7 +1,25 @@
-import { randomBytes } from 'node:crypto'
+import { randomInt } from 'node:crypto'
+
+const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+const lowercase = 'abcdefghijkmnopqrstuvwxyz'
+const digits = '23456789'
+const special = '!@#$%&*?'
+const allCharacters = uppercase + lowercase + digits + special
+
+function pick(characters) {
+  return characters[randomInt(characters.length)]
+}
 
 export function generateTemporaryPassword() {
-  return `${randomBytes(18).toString('base64url')}Aa!`
+  const characters = [pick(uppercase), pick(lowercase), pick(special)]
+  while (characters.length < 6) characters.push(pick(allCharacters))
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1)
+    const character = characters[index]
+    characters[index] = characters[swapIndex]
+    characters[swapIndex] = character
+  }
+  return characters.join('')
 }
 
 function escapeHtml(value) {
