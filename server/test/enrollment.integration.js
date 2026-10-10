@@ -21,10 +21,19 @@ let baseUrl
 let offering
 let adminCookie
 let studentCookies
+const otpCodes = new Map()
 
 async function call(path, { cookie, method = 'GET', body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, { method, headers: { ...(cookie && { Cookie: cookie }), ...(body && { 'Content-Type': 'application/json' }) }, ...(body && { body: JSON.stringify(body) }) })
   return { status: response.status, data: await response.json(), cookie: response.headers.get('set-cookie')?.split(';')[0] }
+}
+
+async function signIn(email) {
+  const pending = await call('/api/auth/login', { method: 'POST', body: { email, password } })
+  assert.equal(pending.status, 200)
+  const verified = await call('/api/auth/verify-otp', { method: 'POST', body: { challengeToken: pending.data.data.challengeToken, code: otpCodes.get(email) } })
+  assert.equal(verified.status, 200)
+  return verified.cookie
 }
 
 before(async () => {
@@ -44,11 +53,11 @@ before(async () => {
   const faculty = await Faculty.create({ userId: facultyUser.id, employeeNumber: 'F001', firstName: 'Test', lastName: 'Faculty', departmentId: department.id, contactEmail: 'faculty@test.example' })
   await Student.create(studentUsers.map((user, index) => ({ userId: user.id, studentNumber: `S00${index + 1}`, firstName: 'Test', lastName: `Student${index + 1}`, contactEmail: user.email, programId: program.id, yearLevel: 1 })))
   offering = await ClassOffering.create({ subjectId: subject.id, academicTermId: term.id, programId: program.id, yearLevel: 1, facultyId: faculty.id, capacity: 1 })
-  server = createApp({ jwtSecret: 'integration-test-secret-long-enough-for-hs256' }).listen(0)
+  server = createApp({ jwtSecret: 'integration-test-secret-long-enough-for-hs256', sendLoginOtp: async ({ email, code }) => { otpCodes.set(email, code) } }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   baseUrl = `http://127.0.0.1:${server.address().port}`
-  adminCookie = (await call('/api/auth/login', { method: 'POST', body: { email: admin.email, password } })).cookie
-  studentCookies = await Promise.all(studentUsers.map(async (user) => (await call('/api/auth/login', { method: 'POST', body: { email: user.email, password } })).cookie))
+  adminCookie = await signIn(admin.email)
+  studentCookies = await Promise.all(studentUsers.map((user) => signIn(user.email)))
 })
 
 after(async () => {

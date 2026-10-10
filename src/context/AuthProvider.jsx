@@ -17,6 +17,11 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    return data
+  }
+
+  async function verifyOtp(challengeToken, code) {
+    const data = await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ challengeToken, code }) })
     setUser(data.user)
     return data.user
   }
@@ -26,5 +31,5 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, setUser, loading, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, setUser, loading, login, verifyOtp, logout }}>{children}</AuthContext.Provider>
 }

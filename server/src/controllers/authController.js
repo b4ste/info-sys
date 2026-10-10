@@ -1,10 +1,12 @@
 import bcrypt from 'bcryptjs'
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import User from '../models/User.js'
 import { passwordSchema } from '../validators/passwordSchema.js'
 
 const loginSchema = z.object({ email: z.email(), password: z.string().min(1) })
+const verifyOtpSchema = z.object({ challengeToken: z.string().regex(/^[a-f0-9]{64}$/), code: z.string().regex(/^\d{6}$/) })
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: passwordSchema,
@@ -13,6 +15,16 @@ const changePasswordSchema = z.object({
 const cookieName = 'sis_session'
 const maxFailedLogins = 5
 const loginCooldownMs = 10 * 60 * 1000
+const otpLifetimeMs = 10 * 60 * 1000
+const maxOtpAttempts = 5
+
+function challengeHash(token) {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+function codeHash(secret, token, code) {
+  return createHmac('sha256', secret).update(`${token}:${code}`).digest('hex')
+}
 
 function cookieOptions(production) {
   return { httpOnly: true, secure: production, sameSite: 'lax', path: '/' }
@@ -33,7 +45,7 @@ function lockedLogin(response, lockedUntil) {
   })
 }
 
-export function createAuthController({ jwtSecret, production }) {
+export function createAuthController({ jwtSecret, production, sendLoginOtp }) {
   function issueSession(response, user) {
     const token = jwt.sign({ v: user.sessionVersion }, jwtSecret, { subject: user.id, expiresIn: '8h', algorithm: 'HS256' })
     response.cookie(cookieName, token, { ...cookieOptions(production), maxAge: 8 * 60 * 60 * 1000 })
@@ -81,13 +93,72 @@ export function createAuthController({ jwtSecret, production }) {
           await User.updateOne({ _id: user.id, loginLockedUntil: null }, { $set: { loginLockedUntil: lockedUntil } })
           return lockedLogin(response, lockedUntil)
         }
-        return response.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' } })
+        const remaining = maxFailedLogins - attempt.failedLoginAttempts
+        return response.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: `Invalid email or password. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before a 10-minute lockout.` } })
       }
 
       await User.updateOne({ _id: user.id }, { $set: { failedLoginAttempts: 0, loginLockedUntil: null } })
+      if (!sendLoginOtp) {
+        return response.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: 'Sign-in email is not configured.' } })
+      }
 
-      issueSession(response, user)
-      return response.json({ success: true, data: { user: user.toJSON() } })
+      const challengeToken = randomBytes(32).toString('hex')
+      const code = randomInt(1_000_000).toString().padStart(6, '0')
+      const hashedChallenge = challengeHash(challengeToken)
+      await User.updateOne({ _id: user.id, status: 'active' }, { $set: {
+        loginOtpChallengeHash: hashedChallenge,
+        loginOtpCodeHash: codeHash(jwtSecret, challengeToken, code),
+        loginOtpExpiresAt: new Date(Date.now() + otpLifetimeMs),
+        loginOtpAttempts: 0,
+      } })
+      try {
+        await sendLoginOtp({ email: user.email, code })
+      } catch (error) {
+        console.error('Sign-in code email failed:', error.message)
+        await User.updateOne({ _id: user.id, loginOtpChallengeHash: hashedChallenge }, { $unset: { loginOtpChallengeHash: '', loginOtpCodeHash: '', loginOtpExpiresAt: '' }, $set: { loginOtpAttempts: 0 } })
+        return response.status(502).json({ success: false, error: { code: 'OTP_EMAIL_FAILED', message: 'The sign-in code could not be emailed. Please try again.' } })
+      }
+      return response.json({ success: true, data: { otpRequired: true, challengeToken, email: user.email } })
+    },
+    async verifyOtp(request, response) {
+      const parsed = verifyOtpSchema.safeParse(request.body)
+      if (!parsed.success) return invalidInput(response, parsed.error.flatten().fieldErrors)
+      const { challengeToken, code } = parsed.data
+      const hashedChallenge = challengeHash(challengeToken)
+      const user = await User.findOne({ loginOtpChallengeHash: hashedChallenge, status: 'active' })
+        .select('+loginOtpCodeHash +loginOtpExpiresAt +loginOtpAttempts +sessionVersion')
+      if (!user) {
+        return response.status(400).json({ success: false, error: { code: 'OTP_INVALID', message: 'This sign-in code is no longer valid. Sign in again.' } })
+      }
+      if (!user.loginOtpCodeHash || !user.loginOtpExpiresAt || user.loginOtpExpiresAt <= new Date()) {
+        await User.updateOne({ _id: user.id, loginOtpChallengeHash: hashedChallenge }, { $unset: { loginOtpChallengeHash: '', loginOtpCodeHash: '', loginOtpExpiresAt: '' }, $set: { loginOtpAttempts: 0 } })
+        return response.status(400).json({ success: false, error: { code: 'OTP_EXPIRED', message: 'The sign-in code expired. Sign in again to get a new one.' } })
+      }
+      const expected = Buffer.from(codeHash(jwtSecret, challengeToken, code), 'hex')
+      const actual = Buffer.from(user.loginOtpCodeHash, 'hex')
+      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+        const attempt = await User.findOneAndUpdate(
+          { _id: user.id, loginOtpChallengeHash: hashedChallenge, loginOtpAttempts: { $lt: maxOtpAttempts } },
+          { $inc: { loginOtpAttempts: 1 } },
+          { new: true },
+        ).select('+loginOtpAttempts')
+        const remaining = maxOtpAttempts - (attempt?.loginOtpAttempts ?? maxOtpAttempts)
+        if (remaining <= 0) {
+          await User.updateOne({ _id: user.id, loginOtpChallengeHash: hashedChallenge }, { $unset: { loginOtpChallengeHash: '', loginOtpCodeHash: '', loginOtpExpiresAt: '' }, $set: { loginOtpAttempts: 0 } })
+          return response.status(429).json({ success: false, error: { code: 'OTP_LOCKED', message: 'Too many wrong codes. Sign in again to get a new code.' } })
+        }
+        return response.status(401).json({ success: false, error: { code: 'OTP_INCORRECT', message: `Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.` } })
+      }
+      const verified = await User.findOneAndUpdate(
+        { _id: user.id, status: 'active', loginOtpChallengeHash: hashedChallenge, loginOtpCodeHash: user.loginOtpCodeHash, loginOtpExpiresAt: { $gt: new Date() }, loginOtpAttempts: { $lt: maxOtpAttempts } },
+        { $unset: { loginOtpChallengeHash: '', loginOtpCodeHash: '', loginOtpExpiresAt: '' }, $set: { loginOtpAttempts: 0 } },
+        { new: true },
+      ).select('+sessionVersion')
+      if (!verified) {
+        return response.status(400).json({ success: false, error: { code: 'OTP_INVALID', message: 'This sign-in code is no longer valid. Sign in again.' } })
+      }
+      issueSession(response, verified)
+      return response.json({ success: true, data: { user: verified.toJSON() } })
     },
     async logout(request, response) {
       await User.updateOne({ _id: request.user.id }, { $inc: { sessionVersion: 1 } })

@@ -8,8 +8,10 @@ export function createAuthRoutes(options) {
   const controller = createAuthController(options)
   const authenticated = requireAuth(options.jwtSecret)
   const loginLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false })
+  const otpLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 50, standardHeaders: 'draft-8', legacyHeaders: false })
 
   router.post('/login', loginLimit, controller.login)
+  router.post('/verify-otp', otpLimit, controller.verifyOtp)
   router.post('/logout', authenticated, controller.logout)
   router.get('/me', authenticated, controller.me)
   router.post('/change-password', authenticated, controller.changePassword)

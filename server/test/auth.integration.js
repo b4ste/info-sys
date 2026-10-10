@@ -15,6 +15,7 @@ let adminCookie
 let studentCookie
 let studentId
 const invitations = []
+const otpCodes = new Map()
 let failInvitation = false
 
 async function request(path, { cookie, method = 'GET', body } = {}) {
@@ -24,6 +25,14 @@ async function request(path, { cookie, method = 'GET', body } = {}) {
     ...(body && { body: JSON.stringify(body) }),
   })
   return { response, data: await response.json() }
+}
+
+async function signIn(email, candidate) {
+  const pending = await request('/api/auth/login', { method: 'POST', body: { email, password: candidate } })
+  assert.equal(pending.response.status, 200)
+  assert.equal(pending.data.data.otpRequired, true)
+  assert.equal(pending.response.headers.get('set-cookie'), null)
+  return request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken: pending.data.data.challengeToken, code: otpCodes.get(email) } })
 }
 
 before(async () => {
@@ -36,11 +45,11 @@ before(async () => {
   server = createApp({ jwtSecret: secret, sendAccountInvitation: async (invitation) => {
     if (failInvitation) throw new Error('Mail service failed')
     invitations.push(invitation)
-  } }).listen(0)
+  }, sendLoginOtp: async ({ email, code }) => { assert.match(code, /^\d{6}$/); otpCodes.set(email, code) } }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   baseUrl = `http://127.0.0.1:${server.address().port}`
-  const adminLogin = await request('/api/auth/login', { method: 'POST', body: { email: 'admin@test.example', password } })
-  const studentLogin = await request('/api/auth/login', { method: 'POST', body: { email: 'student@test.example', password } })
+  const adminLogin = await signIn('admin@test.example', password)
+  const studentLogin = await signIn('student@test.example', password)
   adminCookie = adminLogin.response.headers.get('set-cookie').split(';')[0]
   studentCookie = studentLogin.response.headers.get('set-cookie').split(';')[0]
 })
@@ -81,7 +90,7 @@ test('students cannot list or create accounts; admin can', async () => {
 })
 
 test('temporary passwords must be changed before protected resource access', async () => {
-  const login = await request('/api/auth/login', { method: 'POST', body: { email: 'new@test.example', password: invitations[0].password } })
+  const login = await signIn('new@test.example', invitations[0].password)
   assert.equal(login.response.status, 200)
   const cookie = login.response.headers.get('set-cookie').split(';')[0]
   const denied = await request('/api/departments', { cookie })
@@ -97,6 +106,41 @@ test('temporary passwords must be changed before protected resource access', asy
   assert.equal(stale.response.status, 401)
 })
 
+test('a wrong or reused sign-in code cannot create a session', async () => {
+  const pending = await request('/api/auth/login', { method: 'POST', body: { email: 'admin@test.example', password } })
+  assert.equal(pending.response.status, 200)
+  const challengeToken = pending.data.data.challengeToken
+  const wrongCode = otpCodes.get('admin@test.example') === '000000' ? '000001' : '000000'
+  const wrong = await request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken, code: wrongCode } })
+  assert.equal(wrong.response.status, 401)
+  assert.equal(wrong.response.headers.get('set-cookie'), null)
+  const verified = await request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken, code: otpCodes.get('admin@test.example') } })
+  assert.equal(verified.response.status, 200)
+  assert.ok(verified.response.headers.get('set-cookie'))
+  const reused = await request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken, code: otpCodes.get('admin@test.example') } })
+  assert.equal(reused.response.status, 400)
+})
+
+test('sign-in codes expire and allow only five wrong guesses', async () => {
+  const pending = await request('/api/auth/login', { method: 'POST', body: { email: 'admin@test.example', password } })
+  const challengeToken = pending.data.data.challengeToken
+  const wrongCode = otpCodes.get('admin@test.example') === '000000' ? '000001' : '000000'
+  for (let index = 0; index < 4; index += 1) {
+    const wrong = await request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken, code: wrongCode } })
+    assert.equal(wrong.response.status, 401)
+  }
+  const fifth = await request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken, code: wrongCode } })
+  assert.equal(fifth.response.status, 429)
+  const rejected = await request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken, code: otpCodes.get('admin@test.example') } })
+  assert.equal(rejected.response.status, 400)
+
+  const next = await request('/api/auth/login', { method: 'POST', body: { email: 'admin@test.example', password } })
+  await User.updateOne({ email: 'admin@test.example' }, { $set: { loginOtpExpiresAt: new Date(Date.now() - 1000) } })
+  const expired = await request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken: next.data.data.challengeToken, code: otpCodes.get('admin@test.example') } })
+  assert.equal(expired.response.status, 400)
+  assert.equal(expired.data.error.code, 'OTP_EXPIRED')
+})
+
 test('five failed sign-ins lock an account for ten minutes', async () => {
   const email = 'new@test.example'
   const body = (candidate) => ({ email, password: candidate })
@@ -104,8 +148,9 @@ test('five failed sign-ins lock an account for ten minutes', async () => {
   for (let index = 0; index < 2; index += 1) {
     const failed = await request('/api/auth/login', { method: 'POST', body: body('Wrong!') })
     assert.equal(failed.response.status, 401)
+    assert.match(failed.data.error.message, new RegExp(`${4 - index} attempts remaining`))
   }
-  const success = await request('/api/auth/login', { method: 'POST', body: body('Bb!') })
+  const success = await signIn(email, 'Bb!')
   assert.equal(success.response.status, 200)
   assert.equal('failedLoginAttempts' in success.data.data.user, false)
   assert.equal('loginLockedUntil' in success.data.data.user, false)
@@ -113,6 +158,7 @@ test('five failed sign-ins lock an account for ten minutes', async () => {
   for (let index = 0; index < 4; index += 1) {
     const failed = await request('/api/auth/login', { method: 'POST', body: body('Wrong!') })
     assert.equal(failed.response.status, 401)
+    assert.match(failed.data.error.message, new RegExp(`${4 - index} attempt${index === 3 ? '' : 's'} remaining`))
   }
   const fifth = await request('/api/auth/login', { method: 'POST', body: body('Wrong!') })
   assert.equal(fifth.response.status, 429)
@@ -123,7 +169,7 @@ test('five failed sign-ins lock an account for ten minutes', async () => {
   assert.equal(correctWhileLocked.response.status, 429)
 
   await User.updateOne({ email }, { $set: { loginLockedUntil: new Date(Date.now() - 1000) } })
-  const afterCooldown = await request('/api/auth/login', { method: 'POST', body: body('Bb!') })
+  const afterCooldown = await signIn(email, 'Bb!')
   assert.equal(afterCooldown.response.status, 200)
   const user = await User.findOne({ email }).select('+failedLoginAttempts +loginLockedUntil')
   assert.equal(user.failedLoginAttempts, 0)

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createMailjetInvitationSender, generateTemporaryPassword } from '../src/services/accountInvitation.js'
+import { createMailjetInvitationSender, createMailjetOtpSender, generateTemporaryPassword } from '../src/services/accountInvitation.js'
 
 test('generated temporary passwords are random and meet the password policy', () => {
   const first = generateTemporaryPassword()
@@ -70,4 +70,21 @@ test('invitation sender rejects a Mailjet message error even with an HTTP succes
     send({ email: 'student@example.edu', name: 'Test Student', password: 'RandomAa!' }),
     /mj-0001: Sender not validated/,
   )
+})
+
+test('sign-in code is sent through Mailjet without exposing it in the subject', async () => {
+  let payload
+  const send = createMailjetOtpSender({
+    apiKey: 'test-api-key',
+    secretKey: 'test-secret-key',
+    senderEmail: 'school@example.edu',
+    fetchImpl: async (_url, options) => {
+      payload = JSON.parse(options.body).Messages[0]
+      return { ok: true, status: 200, json: async () => ({ Messages: [{ Status: 'success' }] }) }
+    },
+  })
+  await send({ email: 'student@example.edu', code: '004219' })
+  assert.equal(payload.To[0].Email, 'student@example.edu')
+  assert.match(payload.TextPart, /004219/)
+  assert.doesNotMatch(payload.Subject, /004219/)
 })

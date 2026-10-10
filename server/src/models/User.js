@@ -13,6 +13,10 @@ const userSchema = new mongoose.Schema({
   sessionVersion: { type: Number, default: 0, select: false },
   failedLoginAttempts: { type: Number, default: 0, select: false },
   loginLockedUntil: { type: Date, default: null, select: false },
+  loginOtpChallengeHash: { type: String, select: false },
+  loginOtpCodeHash: { type: String, select: false },
+  loginOtpExpiresAt: { type: Date, select: false },
+  loginOtpAttempts: { type: Number, default: 0, select: false },
 }, { timestamps: true })
 
 userSchema.set('toJSON', {
@@ -21,6 +25,10 @@ userSchema.set('toJSON', {
     delete result.sessionVersion
     delete result.failedLoginAttempts
     delete result.loginLockedUntil
+    delete result.loginOtpChallengeHash
+    delete result.loginOtpCodeHash
+    delete result.loginOtpExpiresAt
+    delete result.loginOtpAttempts
     delete result.__v
     return result
   },

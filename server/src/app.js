@@ -13,7 +13,7 @@ import { createCorrectionRoutes } from './routes/correctionRoutes.js'
 import { createAuditRoutes } from './routes/auditRoutes.js'
 import { errorHandler, notFound } from './middleware/errorHandler.js'
 
-export function createApp({ clientOrigin = 'http://localhost:5173', jwtSecret, sendAccountInvitation = null, production = false, gradePolicy = { min: 0, max: 100, decimals: 2 } } = {}) {
+export function createApp({ clientOrigin = 'http://localhost:5173', jwtSecret, sendAccountInvitation = null, sendLoginOtp = null, production = false, gradePolicy = { min: 0, max: 100, decimals: 2 } } = {}) {
   if (!jwtSecret || jwtSecret.length < 32) throw new Error('A strong JWT secret is required.')
   const app = express()
 
@@ -23,7 +23,7 @@ export function createApp({ clientOrigin = 'http://localhost:5173', jwtSecret, s
   app.use(express.json({ limit: '1mb' }))
   app.use(cookieParser())
   app.use('/api', healthRoutes)
-  app.use('/api/auth', createAuthRoutes({ jwtSecret, production }))
+  app.use('/api/auth', createAuthRoutes({ jwtSecret, production, sendLoginOtp }))
   app.use('/api/users', createUserRoutes(jwtSecret, sendAccountInvitation))
   app.use('/api/students', createProfileRoutes(jwtSecret, 'student'))
   app.use('/api/faculty', createProfileRoutes(jwtSecret, 'faculty'))
