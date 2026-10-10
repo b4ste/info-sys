@@ -1,17 +1,20 @@
 # Account invitation email
 
-The Accounts page asks for a person's name, email address, and role. The server generates a random temporary password and submits an invitation email. The account becomes active only after the email service accepts the message. New users must change their temporary password after signing in.
+The Accounts page asks for a person's name, email address, and role. The server generates a six-character temporary password and submits an invitation email. The account becomes active only after Mailjet accepts the message. New users must change the temporary password after signing in.
 
-The API uses [Brevo's transactional email API](https://developers.brevo.com/reference/send-transac-email) over HTTPS. On the Render web service, set these environment variables:
+The server uses [Mailjet's Send API v3.1](https://dev.mailjet.com/docs/email-api/send-api-v31/send-basic-email) over HTTPS. Set these environment variables on the **Render web service**:
 
 | Key | Value |
 | --- | --- |
-| `BREVO_API_KEY` | API key from your Brevo account (not an SMTP key) |
-| `BREVO_FROM_EMAIL` | Sender email address registered and verified in Brevo |
-| `CLIENT_ORIGIN` | Exact production Vercel origin, such as `https://your-site.vercel.app`, without a trailing slash |
+| `MAILJET_API_KEY` | Mailjet API key (the public key, used as the API username) |
+| `MAILJET_SECRET_KEY` | Secret key paired with that API key |
+| `MAILJET_FROM_EMAIL` | Sender email address validated in Mailjet |
+| `CLIENT_ORIGIN` | Exact production Vercel origin, such as `https://info-sys.vercel.app` |
 
-In Brevo, go to **Settings → Senders, Domains, IPs → Senders**, add the sender email, and enter the verification code Brevo emails to that address. [Brevo's sender setup guide](https://help.brevo.com/hc/en-us/articles/208836149-Create-a-new-sender-From-name-and-From-email) explains the steps. Brevo may replace a free or unauthenticated sender address with one of its own addresses, and inbox delivery may be less reliable without an authenticated domain. [Brevo explains this behavior](https://help.brevo.com/hc/en-us/articles/14925263522578-Comply-with-Gmail-Yahoo-and-Microsoft-s-requirements-for-email-senders).
+In Mailjet, open **Account Settings → Senders & Domains**, add a sender address that you own, and click the confirmation link sent to it. Wait until the address shows **Active**. A domain is optional when validating one sender address, though a Gmail or other free email address can have poor delivery. See [Mailjet's sender guide](https://documentation.mailjet.com/hc/en-us/articles/360042759253-How-to-add-a-sender-address).
 
-Keep the API key on Render only, never in Vercel or Git. For local development, put these values in the ignored `.env` file. The existing `RESEND_API_KEY` and `RESEND_FROM_EMAIL` Render variables are no longer used after this code is deployed; remove them after Brevo is working.
+Find the API key and its paired secret key in Mailjet's API key management. Copy the secret when it is shown. Keep both keys on Render only; do not put them in Vercel, screenshots, or Git. For local development, use the ignored `.env` file.
 
-To check the setup, create a test account with an email address you control. Confirm the message arrives, use its temporary password to sign in, and change the password when prompted. If Brevo rejects the request, the account is not created. An accepted API request does not guarantee inbox delivery; the recipient's mail provider may still filter or reject it.
+After saving the Render variables, deploy the code. The old `BREVO_API_KEY` and `BREVO_FROM_EMAIL` variables are unused by the Mailjet code and can be removed from Render. You do not need an SMTP key or SMTP port.
+
+To check the setup, create a test account with an email address you control. Check the inbox and spam folder, use the temporary password to sign in, and change it when prompted. If Mailjet rejects the API request, the account is deleted. Mailjet accepting a request does not guarantee final inbox delivery.

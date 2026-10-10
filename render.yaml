@@ -19,7 +19,9 @@ services:
         generateValue: true
       - key: CLIENT_ORIGIN
         sync: false
-      - key: BREVO_API_KEY
+      - key: MAILJET_API_KEY
         sync: false
-      - key: BREVO_FROM_EMAIL
+      - key: MAILJET_SECRET_KEY
+        sync: false
+      - key: MAILJET_FROM_EMAIL
         sync: false

@@ -28,35 +28,40 @@ function escapeHtml(value) {
   })[character])
 }
 
-export function createBrevoInvitationSender({ apiKey, senderEmail, appUrl, fetchImpl = fetch }) {
+export function createMailjetInvitationSender({ apiKey, secretKey, senderEmail, appUrl, fetchImpl = fetch }) {
   const loginUrl = new URL('/login', appUrl).toString()
+  const authorization = `Basic ${Buffer.from(`${apiKey}:${secretKey}`).toString('base64')}`
 
   return async function sendAccountInvitation({ email, name, password }) {
     const textContent = `Hello ${name},\n\nAn account has been created for you in the Student Information System.\n\nSign in: ${loginUrl}\nEmail: ${email}\nTemporary password: ${password}\n\nYou will be asked to change this password after signing in.\n`
-    const response = await fetchImpl('https://api.brevo.com/v3/smtp/email', {
+    const response = await fetchImpl('https://api.mailjet.com/v3.1/send', {
       method: 'POST',
-      headers: { 'api-key': apiKey, 'Content-Type': 'application/json', accept: 'application/json' },
+      headers: { Authorization: authorization, 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
-        sender: { name: 'Student Information System', email: senderEmail },
-        to: [{ email }],
-        subject: 'Your Student Information System account',
-        textContent,
-        htmlContent: `<p>Hello ${escapeHtml(name)},</p><p>An account has been created for you in the Student Information System.</p><p><a href="${escapeHtml(loginUrl)}">Sign in</a><br>Email: ${escapeHtml(email)}<br>Temporary password: <strong>${escapeHtml(password)}</strong></p><p>You will be asked to change this password after signing in.</p>`,
+        Messages: [{
+          From: { Name: 'Student Information System', Email: senderEmail },
+          To: [{ Email: email }],
+          Subject: 'Your Student Information System account',
+          TextPart: textContent,
+          HTMLPart: `<p>Hello ${escapeHtml(name)},</p><p>An account has been created for you in the Student Information System.</p><p><a href="${escapeHtml(loginUrl)}">Sign in</a><br>Email: ${escapeHtml(email)}<br>Temporary password: <strong>${escapeHtml(password)}</strong></p><p>You will be asked to change this password after signing in.</p>`,
+        }],
       }),
       signal: AbortSignal.timeout(15000),
     })
 
-    if (!response.ok) {
-      const providerError = typeof response.json === 'function'
-        ? await response.json().catch(() => null)
-        : null
-      const detail = [providerError?.code, providerError?.message]
-        .filter((value) => typeof value === 'string')
+    const result = typeof response.json === 'function'
+      ? await response.json().catch(() => null)
+      : null
+    if (!response.ok || result?.Messages?.[0]?.Status !== 'success') {
+      const providerError = result?.Messages?.[0]?.Errors?.[0] ?? result
+      const detail = [providerError?.ErrorCode ?? providerError?.ErrorIdentifier, providerError?.ErrorMessage ?? providerError?.message]
+        .filter((value) => typeof value === 'string' || typeof value === 'number')
         .join(': ')
-        .replaceAll(apiKey, '[redacted]')
-        .replace(/xkeysib-[A-Za-z0-9-]+/g, '[redacted]')
+        .split(apiKey).join('[redacted]')
+        .split(secretKey).join('[redacted]')
+        .split(authorization).join('[redacted]')
         .slice(0, 300)
-      throw new Error(`Email provider returned status ${response.status}${detail ? `: ${detail}` : ''}.`)
+      throw new Error(`Mailjet returned status ${response.status}${detail ? `: ${detail}` : ''}.`)
     }
   }
 }
