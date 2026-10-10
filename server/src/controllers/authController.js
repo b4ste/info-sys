@@ -11,6 +11,8 @@ const changePasswordSchema = z.object({
 })
 
 const cookieName = 'sis_session'
+const maxFailedLogins = 5
+const loginCooldownMs = 10 * 60 * 1000
 
 function cookieOptions(production) {
   return { httpOnly: true, secure: production, sameSite: 'lax', path: '/' }
@@ -19,6 +21,16 @@ function cookieOptions(production) {
 function invalidInput(response, issues) {
   const message = Object.values(issues).flat()[0] ?? 'Invalid input.'
   return response.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message, details: issues } })
+}
+
+function lockedLogin(response, lockedUntil) {
+  const seconds = Math.max(1, Math.ceil((lockedUntil.getTime() - Date.now()) / 1000))
+  const minutes = Math.ceil(seconds / 60)
+  response.set('Retry-After', String(seconds))
+  return response.status(429).json({
+    success: false,
+    error: { code: 'ACCOUNT_LOCKED', message: `Too many failed sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.` },
+  })
 }
 
 export function createAuthController({ jwtSecret, production }) {
@@ -32,11 +44,47 @@ export function createAuthController({ jwtSecret, production }) {
       const parsed = loginSchema.safeParse(request.body)
       if (!parsed.success) return invalidInput(response, parsed.error.flatten().fieldErrors)
 
-      const user = await User.findOne({ email: parsed.data.email.toLowerCase() }).select('+passwordHash +sessionVersion')
-      const valid = user && await bcrypt.compare(parsed.data.password, user.passwordHash)
-      if (!valid || user.status !== 'active') {
+      const user = await User.findOne({ email: parsed.data.email.toLowerCase() }).select('+passwordHash +sessionVersion +failedLoginAttempts +loginLockedUntil')
+      if (!user || user.status !== 'active') {
         return response.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' } })
       }
+
+      const now = new Date()
+      if (user.loginLockedUntil && user.loginLockedUntil > now) return lockedLogin(response, user.loginLockedUntil)
+      if (user.loginLockedUntil) {
+        await User.updateOne(
+          { _id: user.id, loginLockedUntil: { $lte: now } },
+          { $set: { failedLoginAttempts: 0, loginLockedUntil: null } },
+        )
+      }
+
+      // Reserve an attempt atomically so parallel requests cannot exceed the limit.
+      const attempt = await User.findOneAndUpdate(
+        { _id: user.id, status: 'active', loginLockedUntil: null, $or: [{ failedLoginAttempts: { $lt: maxFailedLogins } }, { failedLoginAttempts: { $exists: false } }] },
+        { $inc: { failedLoginAttempts: 1 } },
+        { new: true },
+      ).select('+failedLoginAttempts +loginLockedUntil')
+      if (!attempt) {
+        const current = await User.findById(user.id).select('+loginLockedUntil')
+        if (!current || current.status !== 'active') {
+          return response.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' } })
+        }
+        const lockedUntil = current.loginLockedUntil ?? new Date(Date.now() + loginCooldownMs)
+        await User.updateOne({ _id: user.id, loginLockedUntil: null, failedLoginAttempts: { $gte: maxFailedLogins } }, { $set: { loginLockedUntil: lockedUntil } })
+        return lockedLogin(response, lockedUntil)
+      }
+
+      const valid = await bcrypt.compare(parsed.data.password, user.passwordHash)
+      if (!valid) {
+        if (attempt.failedLoginAttempts >= maxFailedLogins) {
+          const lockedUntil = new Date(Date.now() + loginCooldownMs)
+          await User.updateOne({ _id: user.id, loginLockedUntil: null }, { $set: { loginLockedUntil: lockedUntil } })
+          return lockedLogin(response, lockedUntil)
+        }
+        return response.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' } })
+      }
+
+      await User.updateOne({ _id: user.id }, { $set: { failedLoginAttempts: 0, loginLockedUntil: null } })
 
       issueSession(response, user)
       return response.json({ success: true, data: { user: user.toJSON() } })
@@ -59,6 +107,8 @@ export function createAuthController({ jwtSecret, production }) {
       user.passwordHash = await bcrypt.hash(parsed.data.newPassword, 12)
       user.mustChangePassword = false
       user.sessionVersion += 1
+      user.failedLoginAttempts = 0
+      user.loginLockedUntil = null
       await user.save()
       issueSession(response, user)
       return response.json({ success: true, data: { user: user.toJSON() } })

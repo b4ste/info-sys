@@ -57,10 +57,11 @@ test('students cannot list or create accounts; admin can', async () => {
   const denied = await request('/api/users', { cookie: studentCookie })
   assert.equal(denied.response.status, 403)
 
-  const created = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'New', middleName: 'M', lastName: 'Faculty', email: 'new@test.example', role: 'faculty' } })
+  const created = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'new', middleName: 'm', lastName: 'faculty', email: 'new@test.example', role: 'faculty' } })
   assert.equal(created.response.status, 201)
   assert.equal(created.data.data.user.name, 'New M Faculty')
   assert.equal(created.data.data.user.middleName, 'M')
+  assert.equal(invitations[0].name, 'New M Faculty')
   assert.equal(created.data.data.user.role, 'faculty')
   assert.equal('passwordHash' in created.data.data.user, false)
   assert.equal(invitations.length, 1)
@@ -69,7 +70,7 @@ test('students cannot list or create accounts; admin can', async () => {
   assert.match(invitations[0].password, /[a-z]/)
   assert.match(invitations[0].password, /[^A-Za-z0-9\s]/)
 
-  const renamed = await request(`/api/users/${created.data.data.user._id}/name`, { cookie: adminCookie, method: 'PATCH', body: { firstName: 'Updated', middleName: '', lastName: 'Faculty' } })
+  const renamed = await request(`/api/users/${created.data.data.user._id}/name`, { cookie: adminCookie, method: 'PATCH', body: { firstName: 'updated', middleName: '', lastName: 'faculty' } })
   assert.equal(renamed.response.status, 200)
   assert.equal(renamed.data.data.user.name, 'Updated Faculty')
   const search = await request('/api/users?search=Updated%20Faculty', { cookie: adminCookie })
@@ -94,6 +95,39 @@ test('temporary passwords must be changed before protected resource access', asy
   assert.equal(allowed.response.status, 200)
   const stale = await request('/api/auth/me', { cookie })
   assert.equal(stale.response.status, 401)
+})
+
+test('five failed sign-ins lock an account for ten minutes', async () => {
+  const email = 'new@test.example'
+  const body = (candidate) => ({ email, password: candidate })
+
+  for (let index = 0; index < 2; index += 1) {
+    const failed = await request('/api/auth/login', { method: 'POST', body: body('Wrong!') })
+    assert.equal(failed.response.status, 401)
+  }
+  const success = await request('/api/auth/login', { method: 'POST', body: body('Bb!') })
+  assert.equal(success.response.status, 200)
+  assert.equal('failedLoginAttempts' in success.data.data.user, false)
+  assert.equal('loginLockedUntil' in success.data.data.user, false)
+
+  for (let index = 0; index < 4; index += 1) {
+    const failed = await request('/api/auth/login', { method: 'POST', body: body('Wrong!') })
+    assert.equal(failed.response.status, 401)
+  }
+  const fifth = await request('/api/auth/login', { method: 'POST', body: body('Wrong!') })
+  assert.equal(fifth.response.status, 429)
+  assert.equal(fifth.data.error.code, 'ACCOUNT_LOCKED')
+  assert.ok(Number(fifth.response.headers.get('retry-after')) <= 600)
+
+  const correctWhileLocked = await request('/api/auth/login', { method: 'POST', body: body('Bb!') })
+  assert.equal(correctWhileLocked.response.status, 429)
+
+  await User.updateOne({ email }, { $set: { loginLockedUntil: new Date(Date.now() - 1000) } })
+  const afterCooldown = await request('/api/auth/login', { method: 'POST', body: body('Bb!') })
+  assert.equal(afterCooldown.response.status, 200)
+  const user = await User.findOne({ email }).select('+failedLoginAttempts +loginLockedUntil')
+  assert.equal(user.failedLoginAttempts, 0)
+  assert.equal(user.loginLockedUntil, null)
 })
 
 test('inactive accounts cannot log in or use an existing session', async () => {

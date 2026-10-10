@@ -7,7 +7,7 @@ export function createAuthRoutes(options) {
   const router = Router()
   const controller = createAuthController(options)
   const authenticated = requireAuth(options.jwtSecret)
-  const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false })
+  const loginLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false })
 
   router.post('/login', loginLimit, controller.login)
   router.post('/logout', authenticated, controller.logout)

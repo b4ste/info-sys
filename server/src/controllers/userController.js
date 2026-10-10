@@ -5,10 +5,14 @@ import User from '../models/User.js'
 import { audit } from '../services/academicService.js'
 import { generateTemporaryPassword } from '../services/accountInvitation.js'
 
+function capitalizeName(value) {
+  return value.replace(/(^|[\s'-])(\p{L})/gu, (_match, separator, letter) => `${separator}${letter.toUpperCase()}`)
+}
+
 const accountNameSchema = z.object({
-  firstName: z.string().trim().min(1).max(60),
-  middleName: z.string().trim().max(60).optional().default(''),
-  lastName: z.string().trim().min(1).max(60),
+  firstName: z.string().trim().min(1).max(60).transform(capitalizeName),
+  middleName: z.string().trim().max(60).default('').transform(capitalizeName),
+  lastName: z.string().trim().min(1).max(60).transform(capitalizeName),
 })
 const createSchema = accountNameSchema.extend({
   email: z.email(),

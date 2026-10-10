@@ -11,12 +11,16 @@ const userSchema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   mustChangePassword: { type: Boolean, default: true },
   sessionVersion: { type: Number, default: 0, select: false },
+  failedLoginAttempts: { type: Number, default: 0, select: false },
+  loginLockedUntil: { type: Date, default: null, select: false },
 }, { timestamps: true })
 
 userSchema.set('toJSON', {
   transform(_document, result) {
     delete result.passwordHash
     delete result.sessionVersion
+    delete result.failedLoginAttempts
+    delete result.loginLockedUntil
     delete result.__v
     return result
   },
