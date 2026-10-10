@@ -46,6 +46,17 @@ export function createBrevoInvitationSender({ apiKey, senderEmail, appUrl, fetch
       signal: AbortSignal.timeout(15000),
     })
 
-    if (!response.ok) throw new Error(`Email provider returned status ${response.status}.`)
+    if (!response.ok) {
+      const providerError = typeof response.json === 'function'
+        ? await response.json().catch(() => null)
+        : null
+      const detail = [providerError?.code, providerError?.message]
+        .filter((value) => typeof value === 'string')
+        .join(': ')
+        .replaceAll(apiKey, '[redacted]')
+        .replace(/xkeysib-[A-Za-z0-9-]+/g, '[redacted]')
+        .slice(0, 300)
+      throw new Error(`Email provider returned status ${response.status}${detail ? `: ${detail}` : ''}.`)
+    }
   }
 }

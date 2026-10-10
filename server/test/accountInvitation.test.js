@@ -40,7 +40,14 @@ test('invitation sender rejects an unsuccessful provider response', async () => 
     apiKey: 'test-api-key',
     senderEmail: 'school@example.edu',
     appUrl: 'https://school.vercel.app',
-    fetchImpl: async () => ({ ok: false, status: 401 }),
+    fetchImpl: async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ code: 'unauthorized', message: 'Key not found: test-api-key' }),
+    }),
   })
-  await assert.rejects(send({ email: 'student@example.edu', name: 'Test Student', password: 'RandomAa!' }), /status 401/)
+  await assert.rejects(
+    send({ email: 'student@example.edu', name: 'Test Student', password: 'RandomAa!' }),
+    (error) => error.message.includes('status 401: unauthorized: Key not found') && !error.message.includes('test-api-key'),
+  )
 })
