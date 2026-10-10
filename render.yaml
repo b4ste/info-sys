@@ -3,7 +3,7 @@ services:
     name: student-infosys-api
     runtime: node
     plan: free
-    buildCommand: npm ci
+    buildCommand: npm ci --omit=dev
     startCommand: npm run server:start
     healthCheckPath: /api/health
     envVars:
@@ -17,3 +17,9 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false

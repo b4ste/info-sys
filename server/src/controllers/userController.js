@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 import { z } from 'zod'
 import User from '../models/User.js'
 import { audit } from '../services/academicService.js'
-import { passwordSchema } from '../validators/passwordSchema.js'
+import { generateTemporaryPassword } from '../services/accountInvitation.js'
 
 const accountNameSchema = z.object({
   firstName: z.string().trim().min(1).max(60),
@@ -12,7 +12,6 @@ const accountNameSchema = z.object({
 })
 const createSchema = accountNameSchema.extend({
   email: z.email(),
-  password: passwordSchema,
   role: z.enum(['student', 'faculty', 'admin']),
 })
 const statusSchema = z.object({ status: z.enum(['active', 'inactive']) })
@@ -52,22 +51,41 @@ export async function listUsers(request, response) {
   return response.json({ success: true, data: { items, page, limit, total } })
 }
 
-export async function createUser(request, response) {
-  const parsed = createSchema.safeParse(request.body)
-  if (!parsed.success) return validationError(response, parsed.error.flatten().fieldErrors)
-  const { firstName, middleName, lastName, email, password, role } = parsed.data
-  const user = await User.create({
-    firstName,
-    middleName,
-    lastName,
-    name: fullName(parsed.data),
-    email: email.toLowerCase(),
-    passwordHash: await bcrypt.hash(password, 12),
-    role,
-    mustChangePassword: true,
-  })
-  await audit(request.user.id, 'account.created', 'User', user.id, { role: user.role })
-  return response.status(201).json({ success: true, data: { user } })
+export function createUser(sendAccountInvitation) {
+  return async function handleCreateUser(request, response) {
+    const parsed = createSchema.safeParse(request.body)
+    if (!parsed.success) return validationError(response, parsed.error.flatten().fieldErrors)
+    if (!sendAccountInvitation) {
+      return response.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: 'Account email is not configured. Set up the email sender before creating accounts.' } })
+    }
+
+    const { firstName, middleName, lastName, email, role } = parsed.data
+    const password = generateTemporaryPassword()
+    const user = await User.create({
+      firstName,
+      middleName,
+      lastName,
+      name: fullName(parsed.data),
+      email: email.toLowerCase(),
+      passwordHash: await bcrypt.hash(password, 12),
+      role,
+      status: 'inactive',
+      mustChangePassword: true,
+    })
+
+    try {
+      await sendAccountInvitation({ email: user.email, name: user.name, password })
+    } catch (error) {
+      console.error('Account invitation failed:', error.message)
+      await User.deleteOne({ _id: user.id, status: 'inactive' })
+      return response.status(502).json({ success: false, error: { code: 'EMAIL_DELIVERY_FAILED', message: 'The invitation email could not be sent, so the account was not created. Check the email service settings and try again.' } })
+    }
+
+    user.status = 'active'
+    await user.save()
+    await audit(request.user.id, 'account.created', 'User', user.id, { role: user.role })
+    return response.status(201).json({ success: true, data: { user } })
+  }
 }
 
 export async function changeUserName(request, response) {

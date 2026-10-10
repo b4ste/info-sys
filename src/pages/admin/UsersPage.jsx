@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { EmptyState, LoadingState, Notice, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
-import PasswordInput from '../../components/PasswordInput.jsx'
 import { useAuth } from '../../context/useAuth.js'
 import { useApiList } from '../../hooks/useApiList.js'
 import { api } from '../../services/api.js'
@@ -49,7 +48,6 @@ export default function UsersPage() {
   const [message, setMessage] = useState('')
   const [newName, setNewName] = useState(emptyName)
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [role, setRole] = useState('student')
   const [busy, setBusy] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
@@ -60,9 +58,9 @@ export default function UsersPage() {
     event.preventDefault()
     setBusy(true); setError(''); setMessage('')
     try {
-      await api('/users', { method: 'POST', body: JSON.stringify({ ...newName, email, password, role }) })
-      setNewName(emptyName); setEmail(''); setPassword('')
-      setMessage('Account created. Add its academic profile under Students or Faculty.')
+      await api('/users', { method: 'POST', body: JSON.stringify({ ...newName, email, role }) })
+      setNewName(emptyName); setEmail('')
+      setMessage(`Account created. A temporary password was emailed to ${email}. Add its academic profile under Students or Faculty.`)
       await list.refresh()
     } catch (requestError) { setError(requestError.message) }
     finally { setBusy(false) }
@@ -97,14 +95,12 @@ export default function UsersPage() {
     <Notice error={error || list.error} message={message} />
     <form onSubmit={create} className="mt-7 rounded-xl border border-slate-200 bg-white p-6">
       <div className="grid gap-4 sm:grid-cols-3"><NameFields value={newName} onChange={(field, value) => setNewName((current) => ({ ...current, [field]: value }))} /></div>
-      <div className="mt-4 grid items-start gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+      <div className="mt-4 grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
         <label className="text-sm font-medium">Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-        <div><label htmlFor="temporary-password" className="block text-sm font-medium">Temporary password</label><div className="mt-1"><PasswordInput id="temporary-password" label="temporary password" required value={password} onChange={(event) => setPassword(event.target.value)} className="text-sm" /></div><span className="mt-1 block text-xs font-normal text-slate-500">Uppercase, lowercase, and special character.</span></div>
-        <div className="grid items-start gap-4 sm:col-span-2 sm:grid-cols-[160px_minmax(0,1fr)] 2xl:col-span-1">
-          <label className="text-sm font-medium">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="student">Student</option><option value="faculty">Faculty</option><option value="admin">Admin</option></select></label>
-          <button type="submit" disabled={busy} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 sm:mt-6">{busy ? 'Creating…' : 'Create account'}</button>
-        </div>
+        <label className="text-sm font-medium">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="student">Student</option><option value="faculty">Faculty</option><option value="admin">Admin</option></select></label>
+        <button type="submit" disabled={busy} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Sending email…' : 'Create account'}</button>
       </div>
+      <p className="mt-3 text-xs text-slate-500">A random temporary password will be sent to this email address. The user must change it after signing in.</p>
     </form>
     <div className="mt-7 flex flex-wrap items-end justify-between gap-4">
       <div className="flex w-full max-w-lg gap-3"><input aria-label="Search accounts" placeholder="Search name or email" value={search} onChange={(event) => setSearch(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /><button type="button" onClick={() => { list.setPage(1); setQuery(search) }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Search</button></div>

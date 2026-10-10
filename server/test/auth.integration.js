@@ -9,12 +9,13 @@ import { getTestDatabaseUri } from './testDatabase.js'
 
 const secret = 'integration-test-secret-long-enough-for-hs256'
 const password = 'SecureTestPass123!'
-const shortPassword = 'Aa!'
 let server
 let baseUrl
 let adminCookie
 let studentCookie
 let studentId
+const invitations = []
+let failInvitation = false
 
 async function request(path, { cookie, method = 'GET', body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -32,7 +33,10 @@ before(async () => {
   await User.create({ email: 'admin@test.example', passwordHash, role: 'admin', mustChangePassword: false })
   const student = await User.create({ email: 'student@test.example', passwordHash, role: 'student', mustChangePassword: false })
   studentId = student.id
-  server = createApp({ jwtSecret: secret }).listen(0)
+  server = createApp({ jwtSecret: secret, sendAccountInvitation: async (invitation) => {
+    if (failInvitation) throw new Error('Mail service failed')
+    invitations.push(invitation)
+  } }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   baseUrl = `http://127.0.0.1:${server.address().port}`
   const adminLogin = await request('/api/auth/login', { method: 'POST', body: { email: 'admin@test.example', password } })
@@ -53,12 +57,17 @@ test('students cannot list or create accounts; admin can', async () => {
   const denied = await request('/api/users', { cookie: studentCookie })
   assert.equal(denied.response.status, 403)
 
-  const created = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'New', middleName: 'M', lastName: 'Faculty', email: 'new@test.example', password: shortPassword, role: 'faculty' } })
+  const created = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'New', middleName: 'M', lastName: 'Faculty', email: 'new@test.example', role: 'faculty' } })
   assert.equal(created.response.status, 201)
   assert.equal(created.data.data.user.name, 'New M Faculty')
   assert.equal(created.data.data.user.middleName, 'M')
   assert.equal(created.data.data.user.role, 'faculty')
   assert.equal('passwordHash' in created.data.data.user, false)
+  assert.equal(invitations.length, 1)
+  assert.equal(invitations[0].email, 'new@test.example')
+  assert.match(invitations[0].password, /[A-Z]/)
+  assert.match(invitations[0].password, /[a-z]/)
+  assert.match(invitations[0].password, /[^A-Za-z0-9\s]/)
 
   const renamed = await request(`/api/users/${created.data.data.user._id}/name`, { cookie: adminCookie, method: 'PATCH', body: { firstName: 'Updated', middleName: '', lastName: 'Faculty' } })
   assert.equal(renamed.response.status, 200)
@@ -66,19 +75,19 @@ test('students cannot list or create accounts; admin can', async () => {
   const search = await request('/api/users?search=Updated%20Faculty', { cookie: adminCookie })
   assert.equal(search.data.data.total, 1)
 
-  const missingLastName = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'Only', email: 'invalid@test.example', password: shortPassword, role: 'faculty' } })
+  const missingLastName = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'Only', email: 'invalid@test.example', role: 'faculty' } })
   assert.equal(missingLastName.response.status, 400)
 })
 
 test('temporary passwords must be changed before protected resource access', async () => {
-  const login = await request('/api/auth/login', { method: 'POST', body: { email: 'new@test.example', password: shortPassword } })
+  const login = await request('/api/auth/login', { method: 'POST', body: { email: 'new@test.example', password: invitations[0].password } })
   assert.equal(login.response.status, 200)
   const cookie = login.response.headers.get('set-cookie').split(';')[0]
   const denied = await request('/api/departments', { cookie })
   assert.equal(denied.response.status, 403)
   assert.equal(denied.data.error.code, 'PASSWORD_CHANGE_REQUIRED')
 
-  const changed = await request('/api/auth/change-password', { cookie, method: 'POST', body: { currentPassword: shortPassword, newPassword: 'Bb!' } })
+  const changed = await request('/api/auth/change-password', { cookie, method: 'POST', body: { currentPassword: invitations[0].password, newPassword: 'Bb!' } })
   assert.equal(changed.response.status, 200)
   const newCookie = changed.response.headers.get('set-cookie').split(';')[0]
   const allowed = await request('/api/departments', { cookie: newCookie })
@@ -99,8 +108,19 @@ test('inactive accounts cannot log in or use an existing session', async () => {
 })
 
 test('duplicate email is rejected', async () => {
-  const duplicate = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'Duplicate', lastName: 'Admin', email: 'admin@test.example', password, role: 'admin' } })
+  const duplicate = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'Duplicate', lastName: 'Admin', email: 'admin@test.example', role: 'admin' } })
   assert.equal(duplicate.response.status, 409)
+})
+
+test('failed invitation does not leave an account behind', async () => {
+  failInvitation = true
+  try {
+    const failed = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'Mail', lastName: 'Failure', email: 'mail-failure@test.example', role: 'student' } })
+    assert.equal(failed.response.status, 502)
+    assert.equal(await User.countDocuments({ email: 'mail-failure@test.example' }), 0)
+  } finally {
+    failInvitation = false
+  }
 })
 
 test('academic resources require admin writes and validate program relationships', async () => {
