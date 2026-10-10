@@ -18,6 +18,7 @@ export function createApp({ clientOrigin = 'http://localhost:5173', jwtSecret, p
   const app = express()
 
   app.disable('x-powered-by')
+  if (production) app.set('trust proxy', 1)
   app.use(cors({ origin: clientOrigin, credentials: true }))
   app.use(express.json({ limit: '1mb' }))
   app.use(cookieParser())

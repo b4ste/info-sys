@@ -19,6 +19,24 @@ The API runs at `http://localhost:4000`. `GET /api/health` reports the API and M
 
 The `.env` file is ignored by Git. Ensure your Atlas database user and network access settings allow this machine to connect. Atlas credentials must never be placed in frontend `VITE_` variables.
 
+## Deploy for your group (Render API + Vercel frontend)
+
+Deploy the API first. Your groupmates will use the Vercel URL; they do not need your `.env` or their own Atlas database.
+
+1. Push the repository to GitHub, keeping `.env` untracked. In [Render](https://dashboard.render.com/), choose **New → Blueprint**, select the repository, and use the included `render.yaml`. When prompted for `MONGODB_URI`, enter the Atlas connection string in Render's environment settings. Render generates `JWT_SECRET` for this service. The database name is `student_infosys`. Do not add an existing bootstrap admin password to Render; accounts are already stored in Atlas.
+2. In [Atlas Network Access](https://cloud.mongodb.com/), add the outbound IP ranges shown under your Render service's **Connect → Outbound** tab. Keep the Atlas database password in Render only. If a credential was previously shared, rotate it in Atlas and update Render's `MONGODB_URI`. Once the service is live, open `https://YOUR-RENDER-SERVICE.onrender.com/api/health` and confirm MongoDB reports connected.
+3. Once Render gives you its URL, edit `vercel.json`: add this rewrite **before** the existing `/(.*)` rewrite, replacing the example host with your actual Render host:
+
+   ```json
+   { "source": "/api/:path*", "destination": "https://YOUR-RENDER-SERVICE.onrender.com/api/:path*" }
+   ```
+
+   This makes API requests and session cookies use the same Vercel site origin. Leave `VITE_API_BASE_URL` unset on Vercel.
+4. Push that change, then in [Vercel](https://vercel.com/new) import the same GitHub repository. Use **Framework Preset: Vite**, **Root Directory: `./`**, **Build Command: `npm run build`**, and **Output Directory: `dist`**. Deploy and open the production `*.vercel.app` URL. The existing `vercel.json` also lets page refreshes work on routes such as `/admin`.
+5. In the Render service's **Environment** settings, set `CLIENT_ORIGIN` to the exact Vercel production origin (for example, `https://your-site.vercel.app`, without a trailing slash), then redeploy the API. Check the Vercel site's connection status and sign in with an existing SIS account.
+
+Render's free web service can sleep when idle, so the first request after inactivity may take longer. Vercel preview domains differ from the production domain; this setup is for the production URL. Never put `MONGODB_URI` or `JWT_SECRET` in Vercel variables or the repository.
+
 ### First admin account
 
 There is no public sign-up. Create the initial admin once in PowerShell:
