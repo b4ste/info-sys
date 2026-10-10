@@ -1,0 +1,7 @@
+import { EmptyState, LoadingState, PageHeader, Pager } from '../../components/Page.jsx'
+import { useApiList } from '../../hooks/useApiList.js'
+
+export default function AuditPage() {
+  const list = useApiList('/audit-events')
+  return <section><PageHeader eyebrow="Administration" title="Audit history" description="Decisions, publication events, and sensitive academic changes are recorded here." />{list.error && <p role="alert" className="mt-5 text-sm text-rose-700">{list.error}</p>}{list.loading ? <div className="mt-7"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-7"><EmptyState>No audit events yet.</EmptyState></div> : <div className="mt-7 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">When</th><th className="px-4 py-3">Actor</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Record</th></tr></thead><tbody>{list.items.map((item) => <tr key={item._id} className="border-t border-slate-100"><td className="px-4 py-3">{new Date(item.createdAt).toLocaleString()}</td><td className="px-4 py-3">{item.actorId?.email ?? 'Unknown'}</td><td className="px-4 py-3">{item.action}</td><td className="px-4 py-3">{item.entityType} · {item.entityId}</td></tr>)}</tbody></table></div>}<Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} /></section>
+}

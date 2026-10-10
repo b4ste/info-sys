@@ -1,0 +1,8 @@
+import { Link } from 'react-router-dom'
+import { EmptyState, LoadingState, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
+import { useApiList } from '../../hooks/useApiList.js'
+
+export default function MyClassesPage() {
+  const list = useApiList('/class-offerings')
+  return <section><PageHeader eyebrow="Teaching" title="My classes" description="Class offerings assigned to your faculty profile." />{list.error && <p role="alert" className="mt-5 text-sm text-rose-700">{list.error}</p>}{list.loading ? <div className="mt-7"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-7"><EmptyState>No assigned classes yet.</EmptyState></div> : <div className="mt-7 grid gap-4 md:grid-cols-2">{list.items.map((item) => <article key={item._id} className="rounded-xl border border-slate-200 bg-white p-6"><div className="flex justify-between gap-4"><div><p className="text-xs font-semibold text-blue-700">{item.subjectId?.code}</p><h2 className="mt-1 text-lg font-semibold">{item.subjectId?.name}</h2></div><StatusBadge status={item.status} /></div><p className="mt-3 text-sm text-slate-600">{item.academicTermId?.academicYear} · Term {item.academicTermId?.termNumber}</p><p className="mt-1 text-sm text-slate-600">{item.enrollmentCount} enrolled · capacity {item.capacity}</p><div className="mt-5 flex flex-wrap gap-3 text-sm font-medium"><Link to={`/faculty/classes/${item._id}/roster`} className="text-blue-700 hover:underline">View roster</Link><Link to={`/faculty/classes/${item._id}/grades`} className="text-blue-700 hover:underline">Enter grades</Link></div></article>)}</div>}<Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} /></section>
+}
