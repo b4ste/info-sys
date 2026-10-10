@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { after, before, test } from 'node:test'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createApp } from '../src/app.js'
 import User from '../src/models/User.js'
@@ -27,12 +28,12 @@ async function request(path, { cookie, method = 'GET', body } = {}) {
   return { response, data: await response.json() }
 }
 
-async function signIn(email, candidate) {
+async function signIn(email, candidate, rememberOtp = false) {
   const pending = await request('/api/auth/login', { method: 'POST', body: { email, password: candidate } })
   assert.equal(pending.response.status, 200)
   assert.equal(pending.data.data.otpRequired, true)
   assert.equal(pending.response.headers.get('set-cookie'), null)
-  return request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken: pending.data.data.challengeToken, code: otpCodes.get(email) } })
+  return request('/api/auth/verify-otp', { method: 'POST', body: { challengeToken: pending.data.data.challengeToken, code: otpCodes.get(email), rememberOtp } })
 }
 
 before(async () => {
@@ -104,6 +105,33 @@ test('temporary passwords must be changed before protected resource access', asy
   assert.equal(allowed.response.status, 200)
   const stale = await request('/api/auth/me', { cookie })
   assert.equal(stale.response.status, 401)
+})
+
+test('remembered OTP skips codes for one hour on the same browser only', async () => {
+  const remembered = await signIn('admin@test.example', password, true)
+  assert.equal(remembered.response.status, 200)
+  const trustHeader = remembered.response.headers.getSetCookie().find((item) => item.startsWith('sis_otp_trust='))
+  assert.ok(trustHeader)
+  assert.match(trustHeader, /Max-Age=3600/)
+  const trustCookie = trustHeader.split(';')[0]
+  const trustToken = jwt.verify(trustCookie.split('=')[1], secret, { audience: 'otp-trust' })
+  assert.equal(trustToken.exp - trustToken.iat, 3600)
+
+  const repeated = await request('/api/auth/login', { cookie: trustCookie, method: 'POST', body: { email: 'admin@test.example', password } })
+  assert.equal(repeated.response.status, 200)
+  assert.equal(repeated.data.data.user.email, 'admin@test.example')
+  assert.equal(repeated.data.data.otpRequired, undefined)
+  assert.ok(repeated.response.headers.get('set-cookie')?.includes('sis_session='))
+
+  const wrongPassword = await request('/api/auth/login', { cookie: trustCookie, method: 'POST', body: { email: 'admin@test.example', password: 'Wrong!' } })
+  assert.equal(wrongPassword.response.status, 401)
+
+  const otherBrowser = await request('/api/auth/login', { method: 'POST', body: { email: 'admin@test.example', password } })
+  assert.equal(otherBrowser.data.data.otpRequired, true)
+
+  const expiredToken = jwt.sign({}, secret, { subject: trustToken.sub, audience: 'otp-trust', expiresIn: -1 })
+  const expired = await request('/api/auth/login', { cookie: `sis_otp_trust=${expiredToken}`, method: 'POST', body: { email: 'admin@test.example', password } })
+  assert.equal(expired.data.data.otpRequired, true)
 })
 
 test('a wrong or reused sign-in code cannot create a session', async () => {

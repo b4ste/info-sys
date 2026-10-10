@@ -17,11 +17,12 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    if (data.user) setUser(data.user)
     return data
   }
 
-  async function verifyOtp(challengeToken, code) {
-    const data = await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ challengeToken, code }) })
+  async function verifyOtp(challengeToken, code, rememberOtp = false) {
+    const data = await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ challengeToken, code, rememberOtp }) })
     setUser(data.user)
     return data.user
   }

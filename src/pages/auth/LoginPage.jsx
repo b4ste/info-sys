@@ -9,6 +9,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberOtp, setRememberOtp] = useState(false)
   const [challenge, setChallenge] = useState(null)
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
@@ -21,12 +22,16 @@ export default function LoginPage() {
     setBusy(true)
     try {
       if (challenge) {
-        const signedIn = await verifyOtp(challenge.token, code)
+        const signedIn = await verifyOtp(challenge.token, code, rememberOtp)
         navigate(`/${signedIn.role}`, { replace: true })
       } else {
         const result = await login(email, password)
-        setChallenge({ token: result.challengeToken, email: result.email })
-        setPassword('')
+        if (result.user) {
+          navigate(`/${result.user.role}`, { replace: true })
+        } else {
+          setChallenge({ token: result.challengeToken, email: result.email })
+          setPassword('')
+        }
       }
     } catch (requestError) {
       setError(requestError.message)
@@ -44,6 +49,7 @@ export default function LoginPage() {
           {challenge ? <>
             <p className="text-sm text-slate-600">Enter the six-digit code sent to {challenge.email}. It expires in 10 minutes. Check your spam folder if needed.</p>
             <div><label htmlFor="login-code" className="mb-1 block text-sm font-medium">Verification code</label><input id="login-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 tracking-widest outline-blue-600" /></div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={rememberOtp} onChange={(event) => setRememberOtp(event.target.checked)} className="size-4 accent-blue-700" />Skip email codes on this browser for 1 hour</label>
           </> : <>
             <div><label htmlFor="email" className="mb-1 block text-sm font-medium">Email</label><input id="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-blue-600" /></div>
             <div><label htmlFor="password" className="mb-1 block text-sm font-medium">Password</label><PasswordInput id="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></div>

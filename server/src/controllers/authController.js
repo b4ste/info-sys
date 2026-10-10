@@ -6,17 +6,19 @@ import User from '../models/User.js'
 import { passwordSchema } from '../validators/passwordSchema.js'
 
 const loginSchema = z.object({ email: z.email(), password: z.string().min(1) })
-const verifyOtpSchema = z.object({ challengeToken: z.string().regex(/^[a-f0-9]{64}$/), code: z.string().regex(/^\d{6}$/) })
+const verifyOtpSchema = z.object({ challengeToken: z.string().regex(/^[a-f0-9]{64}$/), code: z.string().regex(/^\d{6}$/), rememberOtp: z.boolean().optional().default(false) })
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: passwordSchema,
 })
 
 const cookieName = 'sis_session'
+const otpTrustCookieName = 'sis_otp_trust'
 const maxFailedLogins = 5
 const loginCooldownMs = 10 * 60 * 1000
 const otpLifetimeMs = 10 * 60 * 1000
 const maxOtpAttempts = 5
+const otpTrustLifetimeMs = 60 * 60 * 1000
 
 function challengeHash(token) {
   return createHash('sha256').update(token).digest('hex')
@@ -49,6 +51,17 @@ export function createAuthController({ jwtSecret, production, sendLoginOtp }) {
   function issueSession(response, user) {
     const token = jwt.sign({ v: user.sessionVersion }, jwtSecret, { subject: user.id, expiresIn: '8h', algorithm: 'HS256' })
     response.cookie(cookieName, token, { ...cookieOptions(production), maxAge: 8 * 60 * 60 * 1000 })
+  }
+
+  function hasTrustedOtp(request, user) {
+    const token = request.cookies?.[otpTrustCookieName]
+    if (!token) return false
+    try {
+      const payload = jwt.verify(token, jwtSecret, { algorithms: ['HS256'], audience: 'otp-trust' })
+      return payload.sub === user.id
+    } catch {
+      return false
+    }
   }
 
   return {
@@ -98,6 +111,10 @@ export function createAuthController({ jwtSecret, production, sendLoginOtp }) {
       }
 
       await User.updateOne({ _id: user.id }, { $set: { failedLoginAttempts: 0, loginLockedUntil: null } })
+      if (hasTrustedOtp(request, user)) {
+        issueSession(response, user)
+        return response.json({ success: true, data: { user: user.toJSON() } })
+      }
       if (!sendLoginOtp) {
         return response.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: 'Sign-in email is not configured.' } })
       }
@@ -123,7 +140,7 @@ export function createAuthController({ jwtSecret, production, sendLoginOtp }) {
     async verifyOtp(request, response) {
       const parsed = verifyOtpSchema.safeParse(request.body)
       if (!parsed.success) return invalidInput(response, parsed.error.flatten().fieldErrors)
-      const { challengeToken, code } = parsed.data
+      const { challengeToken, code, rememberOtp } = parsed.data
       const hashedChallenge = challengeHash(challengeToken)
       const user = await User.findOne({ loginOtpChallengeHash: hashedChallenge, status: 'active' })
         .select('+loginOtpCodeHash +loginOtpExpiresAt +loginOtpAttempts +sessionVersion')
@@ -158,6 +175,10 @@ export function createAuthController({ jwtSecret, production, sendLoginOtp }) {
         return response.status(400).json({ success: false, error: { code: 'OTP_INVALID', message: 'This sign-in code is no longer valid. Sign in again.' } })
       }
       issueSession(response, verified)
+      if (rememberOtp) {
+        const trustToken = jwt.sign({}, jwtSecret, { subject: verified.id, audience: 'otp-trust', expiresIn: '1h', algorithm: 'HS256' })
+        response.cookie(otpTrustCookieName, trustToken, { ...cookieOptions(production), maxAge: otpTrustLifetimeMs })
+      }
       return response.json({ success: true, data: { user: verified.toJSON() } })
     },
     async logout(request, response) {
