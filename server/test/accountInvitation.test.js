@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createResendInvitationSender, generateTemporaryPassword } from '../src/services/accountInvitation.js'
+import { createBrevoInvitationSender, generateTemporaryPassword } from '../src/services/accountInvitation.js'
 
 test('generated temporary passwords are random and meet the password policy', () => {
   const first = generateTemporaryPassword()
@@ -11,9 +11,9 @@ test('generated temporary passwords are random and meet the password policy', ()
   assert.match(first, /[^A-Za-z0-9\s]/)
 })
 
-test('invitation sender submits the recipient and temporary password to Resend', async () => {
+test('invitation sender submits the recipient and temporary password to Brevo', async () => {
   let sent
-  const send = createResendInvitationSender({
+  const send = createBrevoInvitationSender({
     apiKey: 'test-api-key',
     senderEmail: 'school@example.edu',
     appUrl: 'https://school.vercel.app',
@@ -23,17 +23,18 @@ test('invitation sender submits the recipient and temporary password to Resend',
     },
   })
   await send({ email: 'student@example.edu', name: 'Test Student', password: 'RandomAa!' })
-  assert.equal(sent.url, 'https://api.resend.com/emails')
-  assert.equal(sent.options.headers.Authorization, 'Bearer test-api-key')
+  assert.equal(sent.url, 'https://api.brevo.com/v3/smtp/email')
+  assert.equal(sent.options.headers['api-key'], 'test-api-key')
   const message = JSON.parse(sent.options.body)
-  assert.equal(message.from, 'Student Information System <school@example.edu>')
-  assert.equal(message.to[0], 'student@example.edu')
-  assert.match(message.text, /https:\/\/school\.vercel\.app\/login/)
-  assert.match(message.text, /RandomAa!/)
+  assert.deepEqual(message.sender, { name: 'Student Information System', email: 'school@example.edu' })
+  assert.equal(message.to[0].email, 'student@example.edu')
+  assert.match(message.textContent, /https:\/\/school\.vercel\.app\/login/)
+  assert.match(message.textContent, /RandomAa!/)
+  assert.match(message.htmlContent, /RandomAa!/)
 })
 
 test('invitation sender rejects an unsuccessful provider response', async () => {
-  const send = createResendInvitationSender({
+  const send = createBrevoInvitationSender({
     apiKey: 'test-api-key',
     senderEmail: 'school@example.edu',
     appUrl: 'https://school.vercel.app',
