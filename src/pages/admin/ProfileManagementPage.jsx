@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { EmptyState, LoadingState, Notice, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
+import { EmptyState, LoadingState, Notice, PageHeader, Pager, RowActionButton, StatusBadge } from '../../components/Page.jsx'
 import SelectMenu from '../../components/SelectMenu.jsx'
 import { useApiList } from '../../hooks/useApiList.js'
 import { api, apiAll } from '../../services/api.js'
@@ -83,7 +83,7 @@ export default function ProfileManagementPage({ kind }) {
       </div>)}</div>
       <button type="submit" className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white">{editing ? 'Save changes' : 'Create profile'}</button>
     </form>
-    {list.loading ? <div className="mt-7"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-7"><EmptyState /></div> : <div className="mt-7 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Identifier</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr></thead><tbody>{list.items.map((item) => <tr key={item._id} className="border-t border-slate-100"><td className="px-4 py-3">{item.studentNumber ?? item.employeeNumber}</td><td className="px-4 py-3">{item.firstName} {item.lastName}</td><td className="px-4 py-3"><StatusBadge status={item.status} /></td><td className="px-4 py-3"><button type="button" onClick={() => edit(item)} className="font-medium text-blue-700">Edit</button></td></tr>)}</tbody></table></div>}
+    {list.loading ? <div className="mt-7"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-7"><EmptyState /></div> : <div className="mt-7 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Identifier</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr></thead><tbody>{list.items.map((item) => <tr key={item._id} className="border-t border-slate-100"><td className="px-4 py-3">{item.studentNumber ?? item.employeeNumber}</td><td className="px-4 py-3">{item.firstName} {item.lastName}</td><td className="px-4 py-3"><StatusBadge status={item.status} /></td><td className="px-4 py-3"><RowActionButton onClick={() => edit(item)}>Edit</RowActionButton></td></tr>)}</tbody></table></div>}
     <Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} />
   </section>
 }

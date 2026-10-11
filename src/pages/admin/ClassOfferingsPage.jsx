@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EmptyState, LoadingState, Notice, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
 import SelectMenu from '../../components/SelectMenu.jsx'
 import { api, apiAll } from '../../services/api.js'
@@ -38,6 +38,46 @@ function label(item, fallback = 'Unknown') {
   return item ? `${item.code ? `${item.code} · ` : ''}${item.name}` : fallback
 }
 
+function OfferingDialog({ title, onClose, busy, children }) {
+  const dialogRef = useRef(null)
+  const closeRef = useRef(null)
+
+  useEffect(() => {
+    const previousFocus = document.activeElement
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeRef.current?.focus()
+    return () => {
+      document.body.style.overflow = previousOverflow
+      previousFocus?.focus()
+    }
+  }, [])
+
+  function handleKeyDown(event) {
+    if (event.key === 'Escape' && !busy && event.target.getAttribute('aria-expanded') !== 'true') onClose()
+    if (event.key !== 'Tab') return
+    const controls = [...dialogRef.current.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')]
+    if (!controls.length) return
+    if (event.shiftKey && document.activeElement === controls[0]) {
+      event.preventDefault()
+      controls.at(-1).focus()
+    } else if (!event.shiftKey && document.activeElement === controls.at(-1)) {
+      event.preventDefault()
+      controls[0].focus()
+    }
+  }
+
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }} onKeyDown={handleKeyDown}>
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="offering-dialog-title" className="max-h-[min(90vh,800px)] w-full max-w-4xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl">
+      <div className="flex items-start justify-between gap-4">
+        <h2 id="offering-dialog-title" className="text-xl font-semibold">{title}</h2>
+        <button ref={closeRef} type="button" disabled={busy} onClick={onClose} aria-label="Close dialog" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50">Close</button>
+      </div>
+      {children}
+    </div>
+  </div>
+}
+
 export default function ClassOfferingsPage() {
   const [refs, setRefs] = useState({})
   const [offerings, setOfferings] = useState([])
@@ -49,6 +89,7 @@ export default function ClassOfferingsPage() {
   const [selectedOfferingId, setSelectedOfferingId] = useState('')
   const [studentId, setStudentId] = useState('')
   const [assignedIds, setAssignedIds] = useState([])
+  const [loadingStudents, setLoadingStudents] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -126,14 +167,18 @@ export default function ClassOfferingsPage() {
   }
 
   async function chooseOffering(offering) {
+    setScheduleTargetId('')
     setSelectedOfferingId(offering._id)
     setStudentId('')
     setAssignedIds([])
     setError('')
+    setMessage('')
+    setLoadingStudents(true)
     try {
       const enrollments = await apiAll(`/enrollments?classOfferingId=${offering._id}`)
       setAssignedIds(enrollments.map((item) => item.studentId?._id ?? item.studentId))
     } catch (requestError) { setError(requestError.message) }
+    finally { setLoadingStudents(false) }
   }
 
   async function assign(event) {
@@ -159,7 +204,7 @@ export default function ClassOfferingsPage() {
 
   return <section>
     <PageHeader eyebrow="Academic units" title="Class offerings" description="Create a class from a subject, assign its teacher, and enroll students." />
-    <Notice error={error} message={message} />
+    {!scheduleTarget && !selectedOffering && <Notice error={error} message={message} />}
     <form onSubmit={create} className="mt-7 rounded-xl border border-slate-200 bg-white p-6">
       <h2 className="font-semibold">Create class</h2>
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -176,21 +221,50 @@ export default function ClassOfferingsPage() {
     </form>
 
     <div className="mt-7">
-      {offerings.length === 0 ? <EmptyState>No classes created yet.</EmptyState> : <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Program / year</th><th className="px-4 py-3">Teacher</th><th className="px-4 py-3">Term</th><th className="px-4 py-3">Schedule</th><th className="px-4 py-3">Students</th><th className="px-4 py-3">Action</th></tr></thead><tbody>{offerings.slice((page - 1) * 6, page * 6).map((item) => <tr key={item._id} className="border-t border-slate-100"><td className="px-4 py-3">{label(item.subjectId)}</td><td className="px-4 py-3">{label(programs.find((program) => program._id === item.programId))} · Year {item.yearLevel}</td><td className="px-4 py-3">{(() => { const teacher = (refs.faculty ?? []).find((faculty) => faculty._id === item.facultyId); return teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown' })()}</td><td className="px-4 py-3">{item.academicTermId?.academicYear} · Term {item.academicTermId?.termNumber}</td><td className="min-w-44 px-4 py-3">{scheduleText(item.schedule)}</td><td className="px-4 py-3">{item.enrollmentCount}/{item.capacity}</td><td className="px-4 py-3"><div className="flex flex-wrap items-center gap-3"><StatusBadge status={item.status} /><button type="button" onClick={() => { setScheduleTargetId(item._id); setScheduleDraft((item.schedule ?? []).map((slot) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, room: slot.room ?? '' }))) }} className="font-medium text-blue-700">Edit schedule</button><button type="button" onClick={() => chooseOffering(item)} className="font-medium text-blue-700">Enroll student</button></div></td></tr>)}</tbody></table></div>}
+      {offerings.length === 0 ? <EmptyState>No classes created yet.</EmptyState> : <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="w-full min-w-[1100px] text-left text-sm">
+          <thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Program / year</th><th className="px-4 py-3">Teacher</th><th className="px-4 py-3">Term</th><th className="px-4 py-3">Schedule</th><th className="px-4 py-3">Students</th><th className="px-4 py-3">Action</th></tr></thead>
+          <tbody>{offerings.slice((page - 1) * 6, page * 6).map((item) => <tr key={item._id} className="border-t border-slate-100">
+            <td className="px-4 py-3">{label(item.subjectId)}</td>
+            <td className="px-4 py-3">{label(programs.find((program) => program._id === item.programId))} · Year {item.yearLevel}</td>
+            <td className="px-4 py-3">{(() => { const teacher = (refs.faculty ?? []).find((faculty) => faculty._id === item.facultyId); return teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unknown' })()}</td>
+            <td className="px-4 py-3">{item.academicTermId?.academicYear} · Term {item.academicTermId?.termNumber}</td>
+            <td className="min-w-44 px-4 py-3">{scheduleText(item.schedule)}</td>
+            <td className="px-4 py-3">{item.enrollmentCount}/{item.capacity}</td>
+            <td className="px-4 py-3"><div className="flex flex-col items-start gap-2">
+              <StatusBadge status={item.status} />
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                <button type="button" onClick={() => { setSelectedOfferingId(''); setError(''); setMessage(''); setScheduleTargetId(item._id); setScheduleDraft((item.schedule ?? []).map((slot) => ({ day: slot.day, startTime: slot.startTime, endTime: slot.endTime, room: slot.room ?? '' }))) }} className="rounded-md border border-blue-300 px-2 py-1 text-xs font-medium leading-tight text-blue-700 transition-colors hover:border-blue-500 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">Edit schedule</button>
+                <button type="button" onClick={() => chooseOffering(item)} className="rounded-md border border-blue-300 px-2 py-1 text-xs font-medium leading-tight text-blue-700 transition-colors hover:border-blue-500 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">Enroll student</button>
+              </div>
+            </div></td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
       <Pager page={page} total={offerings.length} limit={6} onPageChange={setPage} />
     </div>
 
-    {scheduleTarget && <form onSubmit={saveSchedule} className="mt-7 rounded-xl border border-slate-200 bg-white p-6">
-      <div className="flex items-center justify-between gap-4"><h2 className="font-semibold">Edit schedule for {label(scheduleTarget.subjectId)}</h2><button type="button" onClick={() => setScheduleTargetId('')} className="text-sm text-slate-600 underline">Cancel</button></div>
-      <ScheduleFields slots={scheduleDraft} onChange={setScheduleDraft} />
-      <button type="submit" disabled={busy} className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Save schedule</button>
-    </form>}
+    {scheduleTarget && <OfferingDialog title={`Edit schedule for ${label(scheduleTarget.subjectId)}`} busy={busy} onClose={() => { setScheduleTargetId(''); setError('') }}>
+      <Notice error={error} />
+      <form onSubmit={saveSchedule}>
+        <ScheduleFields slots={scheduleDraft} onChange={setScheduleDraft} />
+        <div className="mt-5 flex justify-end gap-3">
+          <button type="button" disabled={busy} onClick={() => { setScheduleTargetId(''); setError('') }} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={busy} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-50">Save schedule</button>
+        </div>
+      </form>
+    </OfferingDialog>}
 
-    {selectedOffering && <form onSubmit={assign} className="mt-7 rounded-xl border border-slate-200 bg-white p-6">
-      <div className="flex items-center justify-between gap-4"><h2 className="font-semibold">Enroll student in {label(selectedOffering.subjectId)}</h2><button type="button" onClick={() => { setSelectedOfferingId(''); setStudentId('') }} className="text-sm text-slate-600 underline">Close</button></div>
-      <div className="mt-4 max-w-md text-sm font-medium">Student<SelectMenu ariaLabel="Student" required value={studentId} onChange={setStudentId} options={eligibleStudents.map((student) => ({ value: student._id, label: `${student.studentNumber} · ${student.firstName} ${student.lastName}` }))} /></div>
-      {eligibleStudents.length === 0 && <p className="mt-3 text-sm text-slate-500">No available students match this class’s program, year level, and section.</p>}
-      <button type="submit" disabled={busy || !studentId} className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Enroll student</button>
-    </form>}
+    {selectedOffering && <OfferingDialog title={`Enroll student in ${label(selectedOffering.subjectId)}`} busy={busy} onClose={() => { setSelectedOfferingId(''); setStudentId(''); setError(''); setMessage('') }}>
+      <Notice error={error} message={message} />
+      <form onSubmit={assign}>
+        <div className="mt-4 max-w-md text-sm font-medium">Student<SelectMenu ariaLabel="Student" required disabled={loadingStudents} value={studentId} onChange={setStudentId} options={eligibleStudents.map((student) => ({ value: student._id, label: `${student.studentNumber} · ${student.firstName} ${student.lastName}` }))} /></div>
+        {loadingStudents ? <p role="status" className="mt-3 text-sm text-slate-500">Loading available students…</p> : eligibleStudents.length === 0 && <p className="mt-3 text-sm text-slate-500">No available students match this class’s program, year level, and section.</p>}
+        <div className="mt-5 flex justify-end gap-3">
+          <button type="button" disabled={busy} onClick={() => { setSelectedOfferingId(''); setStudentId(''); setError(''); setMessage('') }} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-slate-100 disabled:opacity-50">Close</button>
+          <button type="submit" disabled={busy || loadingStudents || !studentId} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-50">Enroll student</button>
+        </div>
+      </form>
+    </OfferingDialog>}
   </section>
 }

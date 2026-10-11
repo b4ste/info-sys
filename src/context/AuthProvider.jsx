@@ -9,9 +9,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const controller = new AbortController()
     api('/auth/me', { signal: controller.signal })
-      .then(({ user: currentUser }) => setUser(currentUser))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+      .then(({ user: currentUser }) => { if (!controller.signal.aborted) setUser(currentUser) })
+      .catch(() => { if (!controller.signal.aborted) setUser(null) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [])
 
@@ -32,5 +32,7 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, setUser, loading, login, verifyOtp, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, setUser, loading, login, verifyOtp, logout }}>
+    {loading ? <div role="status" className="grid min-h-screen place-items-center text-slate-600">Checking your session…</div> : children}
+  </AuthContext.Provider>
 }

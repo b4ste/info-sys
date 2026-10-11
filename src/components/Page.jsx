@@ -20,6 +20,13 @@ export function StatusBadge({ status }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${tone}`}>{status}</span>
 }
 
+export function RowActionButton({ children, tone = 'default', className = '', ...props }) {
+  const colors = tone === 'danger'
+    ? 'border-rose-300 text-rose-700 hover:border-rose-500 hover:bg-rose-50'
+    : 'border-blue-300 text-blue-700 hover:border-blue-500 hover:bg-blue-50'
+  return <button type="button" {...props} className={`rounded-md border px-2 py-1 text-xs font-medium leading-tight whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 ${colors} ${className}`}>{children}</button>
+}
+
 export function Pager({ page, total, limit, onPageChange, disabled = false, showSinglePage = false }) {
   const pages = Math.max(1, Math.ceil(total / limit))
   if (pages <= 1 && !showSinglePage) return null
