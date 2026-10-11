@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, LoadingState, Notice, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
+import DateField from '../../components/DateField.jsx'
 import SelectMenu from '../../components/SelectMenu.jsx'
 import { useApiList } from '../../hooks/useApiList.js'
 import { api, apiAll } from '../../services/api.js'
+import { formatDate, parseDateInput } from '../../utils/date.js'
 import { referenceLabel, resourceConfig } from './resourceConfig.js'
 
 function formatInput(value, field) {
   if (value == null) return ''
   if (field.type === 'yearLevels') return value.join(', ')
-  if (field.type === 'date') return new Date(value).toISOString().slice(0, 10)
+  if (field.type === 'date') return formatDate(value)
   return String(value)
 }
 
@@ -19,7 +21,11 @@ function serialize(form, fields) {
     if (!value && field.optional) continue
     if (field.type === 'number' || field.type === 'term' || field.type === 'programYearLevel') data[field.name] = Number(value)
     else if (field.type === 'yearLevels') data[field.name] = value.split(',').map((item) => Number(item.trim()))
-    else if (field.type === 'date') data[field.name] = new Date(`${value}T00:00:00`).toISOString()
+    else if (field.type === 'date') {
+      const date = parseDateInput(value)
+      if (!date) throw new Error('Enter valid dates using DD/MM/YYYY.')
+      data[field.name] = `${date}T00:00:00.000Z`
+    }
     else data[field.name] = value
   }
   return data
@@ -110,7 +116,7 @@ export default function AcademicResourcePage({ resource }) {
     const value = item[field.name]
     if (field.source) return referenceLabel(field.source, refs[field.source]?.find((option) => option._id === value))
     if (field.type === 'yearLevels') return value?.join(', ') ?? '—'
-    if (field.type === 'date') return value ? new Date(value).toLocaleDateString() : '—'
+    if (field.type === 'date') return value ? formatDate(value) : '—'
     return value ?? '—'
   }
 
@@ -124,7 +130,8 @@ export default function AcademicResourcePage({ resource }) {
           {config.fields.map((field) => <div key={field.name} className="block text-sm font-medium text-slate-700"><span>{field.label}</span>
             {field.type === 'programYearLevel' ? <SelectMenu ariaLabel={field.label} required disabled={!form.programId} value={form[field.name] ?? ''} onChange={(value) => setForm({ ...form, [field.name]: value })} placeholder={form.programId ? 'Select year level…' : 'Select a program first'} options={(selectedProgram?.yearLevels ?? []).map((year) => ({ value: year, label: `${year}${year % 10 === 1 && year % 100 !== 11 ? 'st' : year % 10 === 2 && year % 100 !== 12 ? 'nd' : year % 10 === 3 && year % 100 !== 13 ? 'rd' : 'th'} year` }))} />
               : field.source ? <SelectMenu ariaLabel={field.label} required={!field.optional} value={form[field.name] ?? ''} onChange={(value) => setForm({ ...form, [field.name]: value, ...(resource === 'sections' && field.name === 'programId' ? { yearLevel: '' } : {}) })} placeholder={field.optional ? 'None' : 'Select…'} options={[...(field.optional ? [{ value: '', label: 'None' }] : []), ...(refs[field.source] ?? []).map((item) => ({ value: item._id, label: referenceLabel(field.source, item) }))]} />
-              : <input aria-label={field.label} required={!field.optional} type={field.type === 'number' || field.type === 'term' ? 'number' : field.type === 'date' ? 'date' : 'text'} min={field.type === 'term' ? 1 : field.type === 'number' ? 0 : undefined} max={field.type === 'term' ? 3 : undefined} value={form[field.name] ?? ''} onChange={(event) => setForm({ ...form, [field.name]: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />}
+              : field.type === 'date' ? <DateField label={field.label} required={!field.optional} value={form[field.name] ?? ''} onChange={(value) => setForm({ ...form, [field.name]: value })} />
+                : <input aria-label={field.label} required={!field.optional} type={field.type === 'number' || field.type === 'term' ? 'number' : 'text'} min={field.type === 'term' ? 1 : field.type === 'number' ? 0 : undefined} max={field.type === 'term' ? 3 : undefined} value={form[field.name] ?? ''} onChange={(event) => setForm({ ...form, [field.name]: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />}
           </div>)}
         </div>
         <button type="submit" disabled={busy} className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50">{busy ? 'Saving…' : editing ? 'Save changes' : 'Create'}</button>
