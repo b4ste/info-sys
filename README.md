@@ -17,9 +17,20 @@ npm run dev
 Open `http://localhost:5173` and use the accounts from the deployed
 application.
 
-The deployed API must allow `http://localhost:5173` in Render's
-`CLIENT_ORIGIN` environment variable. Multiple origins are comma-separated,
-for example:
+If you are using Command Prompt instead of PowerShell, use this copy command:
+
+```bat
+copy .env.local.example .env.local
+```
+
+The Vite development server proxies `/api` requests to the deployed Render
+API, so the backend does not need to be run locally. Keep
+`VITE_API_BASE_URL` empty in `.env.local`; this also keeps the session cookie
+on `localhost` during local development.
+
+If the deployed frontend also needs to call the API directly, Render's
+`CLIENT_ORIGIN` environment variable must allow its URL. Multiple origins are
+comma-separated, for example:
 
 ```text
 https://your-app.vercel.app,http://localhost:5173
@@ -33,6 +44,12 @@ and JWT secret. Never commit `.env` or share its values.
 ```powershell
 Copy-Item .env.example .env
 npm run server:dev
+```
+
+In Command Prompt, use:
+
+```bat
+copy .env.example .env
 ```
 
 In another terminal:

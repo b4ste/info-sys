@@ -29,7 +29,7 @@ function codeHash(secret, token, code) {
 }
 
 function cookieOptions(production) {
-  return { httpOnly: true, secure: production, sameSite: 'lax', path: '/' }
+  return { httpOnly: true, secure: production, sameSite: production ? 'none' : 'lax', path: '/' }
 }
 
 function invalidInput(response, issues) {
