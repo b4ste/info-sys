@@ -14,7 +14,7 @@ import ProfileManagementPage from './pages/admin/ProfileManagementPage.jsx'
 import UsersPage from './pages/admin/UsersPage.jsx'
 import LoginPage from './pages/auth/LoginPage.jsx'
 import FinalGradesPage from './pages/faculty/FinalGradesPage.jsx'
-import GradeEntryPage from './pages/faculty/GradeEntryPage.jsx'
+import ClassGradingPage from './pages/faculty/ClassGradingPage.jsx'
 import MyClassesPage from './pages/faculty/MyClassesPage.jsx'
 import RosterPage from './pages/faculty/RosterPage.jsx'
 import AcademicHistoryPage from './pages/student/AcademicHistoryPage.jsx'
@@ -49,7 +49,7 @@ function App() {
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="classes" element={<MyClassesPage />} />
                   <Route path="classes/:id/roster" element={<RosterPage />} />
-                  <Route path="classes/:id/grades" element={<GradeEntryPage />} />
+                  <Route path="classes/:id/grades" element={<ClassGradingPage />} />
                   <Route path="final-grades" element={<FinalGradesPage />} />
                   <Route path="corrections" element={<CorrectionRequestsPage />} />
                 </>}
