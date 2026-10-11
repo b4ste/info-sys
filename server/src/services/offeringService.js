@@ -23,7 +23,9 @@ export async function validateOffering(data, existing = null) {
   if (!subject || subject.status !== 'active') invalid('Subject must be active.')
   if (!term || term.status === 'completed') invalid('Term must be upcoming or active.')
   if (!program || program.status !== 'active' || !program.yearLevels.includes(data.yearLevel)) invalid('Program and year level must be valid.')
+  if (!existing && String(subject.departmentId ?? '') !== String(program.departmentId)) invalid('Subject must belong to the selected program department.')
   if (!faculty || faculty.status !== 'active') invalid('Assigned faculty must be active.')
+  if ((!existing || String(existing.facultyId) !== String(data.facultyId)) && String(faculty.departmentId) !== String(program.departmentId)) invalid('Assigned faculty must belong to the selected program department.')
   if (data.sectionId) {
     const section = await Section.findById(data.sectionId)
     if (!section || section.status !== 'active' || String(section.programId) !== String(data.programId) || section.yearLevel !== data.yearLevel || String(section.academicTermId) !== String(data.academicTermId)) invalid('Section must match the offering program, year level, and term.')

@@ -106,19 +106,19 @@ export default function ClassOfferingsPage() {
     finally { setBusy(false) }
   }
 
-  if (loading) return <section><PageHeader eyebrow="Record management" title="Class offerings" /><div className="mt-7"><LoadingState /></div></section>
+  if (loading) return <section><PageHeader eyebrow="Academic units" title="Class offerings" /><div className="mt-7"><LoadingState /></div></section>
 
   return <section>
-    <PageHeader eyebrow="Record management" title="Class offerings" description="Create a class from a subject, assign its teacher, and enroll students." />
+    <PageHeader eyebrow="Academic units" title="Class offerings" description="Create a class from a subject, assign its teacher, and enroll students." />
     <Notice error={error} message={message} />
     <form onSubmit={create} className="mt-7 rounded-xl border border-slate-200 bg-white p-6">
       <h2 className="font-semibold">Create class</h2>
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="text-sm font-medium">Program<SelectMenu ariaLabel="Program" required value={form.programId} onChange={(value) => setForm({ ...form, programId: value, yearLevel: '', sectionId: '' })} options={programs.filter((item) => item.status === 'active').map((item) => ({ value: item._id, label: label(item) }))} /></div>
+        <div className="text-sm font-medium">Program<SelectMenu ariaLabel="Program" required value={form.programId} onChange={(value) => setForm({ ...form, programId: value, subjectId: '', facultyId: '', yearLevel: '', sectionId: '' })} options={programs.filter((item) => item.status === 'active').map((item) => ({ value: item._id, label: label(item) }))} /></div>
         <div className="text-sm font-medium">Year level<SelectMenu ariaLabel="Year level" required disabled={!selectedProgram} value={form.yearLevel} onChange={(value) => setForm({ ...form, yearLevel: value, sectionId: '' })} options={(selectedProgram?.yearLevels ?? []).map((year) => ({ value: year, label: `Year ${year}` }))} /></div>
         <div className="text-sm font-medium">Academic term<SelectMenu ariaLabel="Academic term" required value={form.academicTermId} onChange={(value) => setForm({ ...form, academicTermId: value, sectionId: '' })} options={terms.filter((item) => item.status !== 'completed').map((item) => ({ value: item._id, label: `${item.academicYear} · Term ${item.termNumber}` }))} /></div>
-        <div className="text-sm font-medium">Subject<SelectMenu ariaLabel="Subject" required value={form.subjectId} onChange={(value) => setForm({ ...form, subjectId: value })} options={(refs.subjects ?? []).filter((item) => item.status === 'active').map((item) => ({ value: item._id, label: `${label(item)}${item.departmentId ? ` (${departments.find((dept) => dept._id === item.departmentId)?.name ?? 'Department'})` : ''}` }))} /></div>
-        <div className="text-sm font-medium">Teacher<SelectMenu ariaLabel="Teacher" required value={form.facultyId} onChange={(value) => setForm({ ...form, facultyId: value })} options={(refs.faculty ?? []).filter((item) => item.status === 'active').map((item) => ({ value: item._id, label: `${item.firstName} ${item.lastName}` }))} /></div>
+        <div className="text-sm font-medium">Subject<SelectMenu ariaLabel="Subject" required disabled={!selectedProgram} value={form.subjectId} onChange={(value) => setForm({ ...form, subjectId: value })} placeholder={selectedProgram ? 'Select...' : 'Select a program first'} options={(refs.subjects ?? []).filter((item) => item.status === 'active' && item.departmentId === selectedProgram?.departmentId).map((item) => ({ value: item._id, label: `${label(item)} (${departments.find((dept) => dept._id === item.departmentId)?.name ?? 'Department'})` }))} /></div>
+        <div className="text-sm font-medium">Teacher<SelectMenu ariaLabel="Teacher" required disabled={!selectedProgram} value={form.facultyId} onChange={(value) => setForm({ ...form, facultyId: value })} placeholder={selectedProgram ? 'Select...' : 'Select a program first'} options={(refs.faculty ?? []).filter((item) => item.status === 'active' && item.departmentId === selectedProgram?.departmentId).map((item) => ({ value: item._id, label: `${item.firstName} ${item.lastName}` }))} /></div>
         <div className="text-sm font-medium">Section (optional)<SelectMenu ariaLabel="Section" value={form.sectionId} onChange={(value) => setForm({ ...form, sectionId: value })} options={[{ value: '', label: 'All sections' }, ...sectionOptions.map((item) => ({ value: item._id, label: item.name }))]} /></div>
         <label className="text-sm font-medium">Capacity<input aria-label="Capacity" required type="number" min="1" value={form.capacity} onChange={(event) => setForm({ ...form, capacity: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
       </div>

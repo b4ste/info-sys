@@ -5,7 +5,6 @@ const schema = new mongoose.Schema({
   yearLevel: { type: Number, required: true, min: 1 },
   academicTermId: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicTerm', required: true },
   name: { type: String, required: true, trim: true },
-  capacity: { type: Number, min: 1 },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
 }, { timestamps: true })
 

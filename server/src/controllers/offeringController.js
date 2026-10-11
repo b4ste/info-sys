@@ -45,6 +45,8 @@ export async function listOfferings(request, response) {
     filter.$or = student.sectionId
       ? [{ sectionId: { $exists: false } }, { sectionId: null }, { sectionId: student.sectionId }]
       : [{ sectionId: { $exists: false } }, { sectionId: null }]
+    const enrolledOfferingIds = await Enrollment.find({ studentId: student.id }).distinct('classOfferingId')
+    if (enrolledOfferingIds.length) filter._id = { $nin: enrolledOfferingIds }
   }
   if (request.user.role === 'faculty') {
     const faculty = await Faculty.findOne({ userId: request.user.id })

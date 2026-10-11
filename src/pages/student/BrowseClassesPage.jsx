@@ -20,6 +20,7 @@ export default function BrowseClassesPage() {
     try {
       await api('/enrollments', { method: 'POST', body: JSON.stringify({ classOfferingId: offering._id }) })
       setMessage(`Enrollment request sent for ${offering.subjectId?.name}.`)
+      await list.refresh()
     } catch (requestError) { setError(requestError.message) }
     finally { setBusyId('') }
   }

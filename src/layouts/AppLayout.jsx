@@ -9,8 +9,8 @@ const roleLinks = {
 }
 const adminGroups = [
   { title: 'Academic Body', className: 'border-rose-400 bg-rose-400/10', headingClassName: 'text-rose-100', links: [['users', 'Accounts'], ['students', 'Students'], ['faculty', 'Faculty']] },
-  { title: 'Academic Units', className: 'border-amber-300 bg-amber-300/10', headingClassName: 'text-amber-100', links: [['departments', 'Departments'], ['programs', 'Programs'], ['sections', 'Sections'], ['subjects', 'Subjects']] },
-  { title: 'Record Management', className: 'border-sky-300 bg-sky-300/10', headingClassName: 'text-sky-100', links: [['academic-terms', 'Academic terms'], ['offerings', 'Class offerings'], ['enrollments', 'Enrollment approvals'], ['grades', 'Grade oversight'], ['corrections', 'Correction approvals'], ['audit', 'Audit history']] },
+  { title: 'Academic Units', className: 'border-amber-300 bg-amber-300/10', headingClassName: 'text-amber-100', links: [['departments', 'Departments'], ['programs', 'Programs'], ['sections', 'Sections'], ['subjects', 'Subjects'], ['offerings', 'Class offerings']] },
+  { title: 'Record Management', className: 'border-sky-300 bg-sky-300/10', headingClassName: 'text-sky-100', links: [['academic-terms', 'Academic terms'], ['enrollments', 'Enrollment approvals'], ['grades', 'Grade oversight'], ['corrections', 'Correction approvals'], ['audit', 'Audit history']] },
 ]
 
 function SidebarLink({ to, label, end = false }) {

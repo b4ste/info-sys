@@ -9,7 +9,7 @@ const yearLevel = z.number().int().min(1).max(12)
 export const academicSchemas = {
   departments: z.object({ code: code.optional(), name, status: status.optional() }).strict(),
   programs: z.object({ departmentId: objectId, code, name, yearLevels: z.array(yearLevel).min(1), status: status.optional() }).strict(),
-  sections: z.object({ programId: objectId, yearLevel, academicTermId: objectId, name, capacity: z.number().int().min(1).optional(), status: status.optional() }).strict(),
+  sections: z.object({ programId: objectId, yearLevel, academicTermId: objectId, name, status: status.optional() }).strict(),
   subjects: z.object({ departmentId: objectId, code, name, description: z.string().trim().max(2000).optional(), units: z.number().min(0).max(30), status: status.optional() }).strict(),
   'academic-terms': z.object({
     academicYear: z.string().trim().min(4).max(30),
