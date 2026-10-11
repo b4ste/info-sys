@@ -16,10 +16,20 @@ import { errorHandler, notFound } from './middleware/errorHandler.js'
 export function createApp({ clientOrigin = 'http://localhost:5173', jwtSecret, sendAccountInvitation = null, sendLoginOtp = null, production = false, gradePolicy = { min: 0, max: 100, decimals: 2 } } = {}) {
   if (!jwtSecret || jwtSecret.length < 32) throw new Error('A strong JWT secret is required.')
   const app = express()
+  const allowedOrigins = clientOrigin.split(',').map((origin) => origin.trim()).filter(Boolean)
 
   app.disable('x-powered-by')
   if (production) app.set('trust proxy', 1)
-  app.use(cors({ origin: clientOrigin, credentials: true }))
+  app.use(cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true)
+        return
+      }
+      callback(new Error('Request origin is not allowed by the server.'))
+    },
+    credentials: true,
+  }))
   app.use(express.json({ limit: '1mb' }))
   app.use(cookieParser())
   app.use('/api', healthRoutes)

@@ -9,7 +9,10 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   MONGODB_DB_NAME: z.string().trim().min(1).default('student_infosys'),
-  CLIENT_ORIGIN: z.url().default('http://localhost:5173'),
+  CLIENT_ORIGIN: z.string().trim().min(1).refine(
+    (value) => value.split(',').every((origin) => z.url().safeParse(origin.trim()).success),
+    'CLIENT_ORIGIN must contain valid comma-separated URLs',
+  ).default('http://localhost:5173'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   MAILJET_API_KEY: z.string().trim().min(1).optional(),
   MAILJET_SECRET_KEY: z.string().trim().min(1).optional(),
