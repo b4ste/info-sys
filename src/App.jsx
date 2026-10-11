@@ -6,6 +6,7 @@ import ProfilePage from './pages/ProfilePage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import CorrectionRequestsPage from './pages/CorrectionRequestsPage.jsx'
 import AcademicResourcePage from './pages/admin/AcademicResourcePage.jsx'
+import ClassOfferingsPage from './pages/admin/ClassOfferingsPage.jsx'
 import AuditPage from './pages/admin/AuditPage.jsx'
 import EnrollmentApprovalsPage from './pages/admin/EnrollmentApprovalsPage.jsx'
 import GradeOversightPage from './pages/admin/GradeOversightPage.jsx'
@@ -58,7 +59,7 @@ function App() {
                   <Route path="faculty" element={<ProfileManagementPage kind="faculty" />} />
                   {academicResources.map((resource) => <Route key={resource} path={resource} element={<AcademicResourcePage resource={resource} />} />)}
                   <Route path="curriculum-rules" element={<Navigate to="/admin" replace />} />
-                  <Route path="offerings" element={<Navigate to="/admin" replace />} />
+                  <Route path="offerings" element={<ClassOfferingsPage />} />
                   <Route path="enrollments" element={<EnrollmentApprovalsPage />} />
                   <Route path="grades" element={<GradeOversightPage />} />
                   <Route path="corrections" element={<CorrectionRequestsPage />} />

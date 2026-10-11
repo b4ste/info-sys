@@ -8,14 +8,17 @@ function conflict(message) {
   throw error
 }
 
-export async function enrollmentEligibility(student, offering) {
+export async function enrollmentEligibility(student, offering, { allowUpcoming = false } = {}) {
   if (!student || student.status !== 'active') conflict('An active student profile is required.')
   if (!offering || offering.status !== 'open') conflict('This class is not open for enrollment.')
   const term = await AcademicTerm.findById(offering.academicTermId)
-  if (!term || term.status !== 'active') conflict('The offering term is not active.')
-  const now = new Date()
-  if (now < term.enrollmentStart || now > term.enrollmentEnd) conflict('Enrollment is not open for this term.')
+  if (!term || (allowUpcoming ? term.status === 'completed' : term.status !== 'active')) conflict('The offering term is not available for enrollment.')
+  if (!allowUpcoming) {
+    const now = new Date()
+    if (now < term.enrollmentStart || now > term.enrollmentEnd) conflict('Enrollment is not open for this term.')
+  }
   if (String(student.programId) !== String(offering.programId) || (student.yearLevel !== 'irregular' && student.yearLevel !== offering.yearLevel)) conflict('This offering does not match your program and year level.')
+  if (offering.sectionId && String(student.sectionId ?? '') !== String(offering.sectionId)) conflict('This offering does not match your section.')
   if (offering.enrollmentCount >= offering.capacity) conflict('This class is full.')
 }
 

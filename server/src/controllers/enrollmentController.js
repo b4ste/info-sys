@@ -4,11 +4,13 @@ import ClassOffering from '../models/ClassOffering.js'
 import Enrollment from '../models/Enrollment.js'
 import Faculty from '../models/Faculty.js'
 import Grade from '../models/Grade.js'
+import Student from '../models/Student.js'
 import { audit } from '../services/academicService.js'
 import { currentStudent, enrollmentEligibility, releaseSeat, reserveSeat } from '../services/enrollmentService.js'
 import { objectId } from '../validators/academicSchemas.js'
 
 const requestSchema = z.object({ classOfferingId: objectId }).strict()
+const assignSchema = z.object({ studentId: objectId, classOfferingId: objectId }).strict()
 const rejectSchema = z.object({ rejectionReason: z.string().trim().min(1).max(500) }).strict()
 const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20), status: z.enum(['pending', 'approved', 'rejected', 'withdrawn']).optional(), classOfferingId: objectId.optional() })
 
@@ -34,6 +36,30 @@ export async function requestEnrollment(request, response) {
   if (duplicate) return conflict(response, 'You already have an enrollment record for this offering.')
   const item = await Enrollment.create({ studentId: student.id, classOfferingId: offering.id })
   await audit(request.user.id, 'enrollment.requested', 'Enrollment', item.id)
+  return response.status(201).json({ success: true, data: { item } })
+}
+
+export async function assignEnrollment(request, response) {
+  const parsed = assignSchema.safeParse(request.body)
+  if (!parsed.success) return badInput(response, parsed)
+  const [student, offering] = await Promise.all([
+    Student.findById(parsed.data.studentId),
+    ClassOffering.findById(parsed.data.classOfferingId),
+  ])
+  await enrollmentEligibility(student, offering, { allowUpcoming: true })
+  if (await Enrollment.exists({ studentId: student.id, classOfferingId: offering.id })) {
+    return conflict(response, 'This student already has an enrollment record for this class.')
+  }
+  await reserveSeat(offering.id)
+  let item
+  try {
+    item = await Enrollment.create({ studentId: student.id, classOfferingId: offering.id, status: 'approved', reviewedBy: request.user.id, reviewedAt: new Date() })
+  } catch (error) {
+    await releaseSeat(offering.id)
+    if (error.code === 11000) return conflict(response, 'This student already has an enrollment record for this class.')
+    throw error
+  }
+  await audit(request.user.id, 'enrollment.assigned', 'Enrollment', item.id)
   return response.status(201).json({ success: true, data: { item } })
 }
 

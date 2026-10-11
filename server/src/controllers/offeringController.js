@@ -42,6 +42,9 @@ export async function listOfferings(request, response) {
     if (student.yearLevel !== 'irregular') filter.yearLevel = student.yearLevel
     filter.academicTermId = activeTerm.id
     filter.status = 'open'
+    filter.$or = student.sectionId
+      ? [{ sectionId: { $exists: false } }, { sectionId: null }, { sectionId: student.sectionId }]
+      : [{ sectionId: { $exists: false } }, { sectionId: null }]
   }
   if (request.user.role === 'faculty') {
     const faculty = await Faculty.findOne({ userId: request.user.id })
