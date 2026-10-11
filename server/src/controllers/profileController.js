@@ -4,7 +4,7 @@ import Faculty from '../models/Faculty.js'
 import Student from '../models/Student.js'
 import { audit } from '../services/academicService.js'
 import { validateProfile } from '../services/profileService.js'
-import { facultySchema, facultySelfSchema, studentSchema, studentSelfSchema } from '../validators/profileSchemas.js'
+import { facultySchema, facultySelfSchema, studentSchema } from '../validators/profileSchemas.js'
 
 const listSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -26,7 +26,6 @@ function missing(response) {
 export function createProfileController(kind) {
   const Model = kind === 'student' ? Student : Faculty
   const schema = kind === 'student' ? studentSchema : facultySchema
-  const selfSchema = kind === 'student' ? studentSelfSchema : facultySelfSchema
   return {
     async list(request, response) {
       const parsed = listSchema.safeParse(request.query)
@@ -72,7 +71,8 @@ export function createProfileController(kind) {
       if (!item) return missing(response)
       const admin = request.user.role === 'admin'
       if (!admin && String(item.userId) !== request.user.id) return response.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You cannot edit this profile.' } })
-      const parsed = (admin ? schema.omit({ userId: true }).partial() : selfSchema).safeParse(request.body)
+      if (kind === 'student' && !admin) return response.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Student profiles can only be changed by an admin.' } })
+      const parsed = (admin ? schema.omit({ userId: true }).partial() : facultySelfSchema).safeParse(request.body)
       if (!parsed.success) return badInput(response, parsed)
       if (admin) await validateProfile(kind, { ...item.toObject(), ...parsed.data })
       Object.assign(item, parsed.data)

@@ -9,7 +9,7 @@ export const studentSchema = z.object({
   userId: objectId,
   studentNumber: z.string().trim().min(1).max(40),
   firstName: name,
-  middleName: name.optional(),
+  middleName: name.nullable().optional(),
   lastName: name,
   birthDate: z.coerce.date().optional(),
   contactEmail: contact,
@@ -30,5 +30,4 @@ export const facultySchema = z.object({
   status: status.optional(),
 }).strict()
 
-export const studentSelfSchema = studentSchema.pick({ contactEmail: true, phone: true }).partial()
 export const facultySelfSchema = facultySchema.pick({ contactEmail: true }).partial()

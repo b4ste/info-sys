@@ -34,37 +34,47 @@ function serialize(form, fields) {
 export default function AcademicResourcePage({ resource }) {
   const config = resourceConfig[resource]
   const [search, setSearch] = useState('')
-  const [query, setQuery] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [catalogRevision, setCatalogRevision] = useState(0)
-  const [programCatalog, setProgramCatalog] = useState({ revision: -1, items: [], error: '' })
+  const [localCatalog, setLocalCatalog] = useState({ resource: '', revision: -1, items: [], error: '' })
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({})
   const [refs, setRefs] = useState({})
   const [message, setMessage] = useState('')
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
-  const listPath = `/${resource}${query ? `?search=${encodeURIComponent(query)}` : ''}`
-  const list = useApiList(listPath, { limit: resource === 'programs' ? 6 : 20, enabled: resource !== 'programs' })
+  const listPath = `/${resource}${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ''}`
+  const catalogPage = resource === 'programs' || resource === 'sections'
+  const list = useApiList(listPath, { limit: catalogPage ? 6 : 20, enabled: !catalogPage })
   const sources = useMemo(() => [...new Set(config.fields.map((field) => field.source).filter(Boolean))], [config])
   const selectedProgram = (refs.programs ?? []).find((program) => program._id === form.programId)
   const programsPage = resource === 'programs'
-  const catalogLoading = programsPage && programCatalog.revision !== catalogRevision
-  const matchingPrograms = programsPage ? programCatalog.items.filter((item) => (!departmentFilter || item.departmentId === departmentFilter) && (!query.trim() || `${item.code} ${item.name}`.toLowerCase().includes(query.trim().toLowerCase()))) : []
-  const visibleItems = programsPage ? matchingPrograms.slice((list.page - 1) * list.limit, list.page * list.limit) : list.items
-  const visibleTotal = programsPage ? matchingPrograms.length : list.total
-  const visibleError = programsPage ? programCatalog.error : list.error
+  const catalogLoading = catalogPage && (localCatalog.resource !== resource || localCatalog.revision !== catalogRevision)
+  const searchText = search.trim().toLowerCase()
+  const matchingCatalogItems = catalogPage ? localCatalog.items.filter((item) => {
+    if (programsPage && departmentFilter && item.departmentId !== departmentFilter) return false
+    if (!searchText) return true
+    if (programsPage) return `${item.code} ${item.name}`.toLowerCase().includes(searchText)
+    const program = (refs.programs ?? []).find((entry) => entry._id === item.programId)
+    const term = (refs['academic-terms'] ?? []).find((entry) => entry._id === item.academicTermId)
+    return [item.name, item.yearLevel, program?.code, program?.name, term?.academicYear, term?.termNumber]
+      .filter((value) => value != null)
+      .some((value) => String(value).toLowerCase().includes(searchText))
+  }) : []
+  const visibleItems = catalogPage ? matchingCatalogItems.slice((list.page - 1) * list.limit, list.page * list.limit) : list.items
+  const visibleTotal = catalogPage ? matchingCatalogItems.length : list.total
+  const visibleError = catalogPage ? localCatalog.error : list.error
 
   useEffect(() => {
-    if (!programsPage) return undefined
+    if (!catalogPage) return undefined
     let active = true
-    apiAll('/programs').then((items) => {
-      if (active) setProgramCatalog({ revision: catalogRevision, items, error: '' })
+    apiAll(`/${resource}`).then((items) => {
+      if (active) setLocalCatalog({ resource, revision: catalogRevision, items, error: '' })
     }).catch((error) => {
-      if (active) setProgramCatalog({ revision: catalogRevision, items: [], error: error.message })
+      if (active) setLocalCatalog({ resource, revision: catalogRevision, items: [], error: error.message })
     })
     return () => { active = false }
-  }, [programsPage, catalogRevision])
+  }, [catalogPage, catalogRevision, resource])
 
   useEffect(() => {
     let active = true
@@ -94,7 +104,7 @@ export default function AcademicResourcePage({ resource }) {
       await api(`/${resource}${editing ? `/${editing._id}` : ''}`, { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(body) })
       setMessage(editing ? 'Record updated.' : 'Record created.')
       reset()
-      if (programsPage) { list.setPage(1); setCatalogRevision((revision) => revision + 1) }
+      if (catalogPage) { list.setPage(1); setCatalogRevision((revision) => revision + 1) }
       else await list.refresh()
     } catch (error) { setActionError(error.message) }
     finally { setBusy(false) }
@@ -107,13 +117,14 @@ export default function AcademicResourcePage({ resource }) {
     try {
       await api(`/${resource}/${item._id}${operation === 'archive' ? '' : `/${operation}`}`, { method: operation === 'archive' ? 'DELETE' : 'PATCH' })
       setMessage(operation === 'archive' ? 'Record archived.' : `Term ${operation === 'activate' ? 'activated' : 'completed'}.`)
-      if (programsPage) { list.setPage(1); setCatalogRevision((revision) => revision + 1) }
+      if (catalogPage) { list.setPage(1); setCatalogRevision((revision) => revision + 1) }
       else await list.refresh()
     } catch (error) { setActionError(error.message) }
   }
 
   function display(item, field) {
     const value = item[field.name]
+    if (field.name === 'departmentId' && !value) return 'Unassigned'
     if (field.source) return referenceLabel(field.source, refs[field.source]?.find((option) => option._id === value))
     if (field.type === 'yearLevels') return value?.join(', ') ?? '—'
     if (field.type === 'date') return value ? formatDate(value) : '—'
@@ -137,9 +148,9 @@ export default function AcademicResourcePage({ resource }) {
         <button type="submit" disabled={busy} className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50">{busy ? 'Saving…' : editing ? 'Save changes' : 'Create'}</button>
       </form>
 
-      <div className="mt-8 flex flex-wrap items-end gap-3"><input aria-label="Search records" placeholder={resource === 'departments' ? 'Search name' : 'Search code or name'} value={search} onChange={(event) => setSearch(event.target.value)} className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /><button type="button" onClick={() => { list.setPage(1); setQuery(search) }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Search</button>{resource === 'programs' && <div className="ml-auto w-full max-w-xs text-sm font-medium text-slate-700">Department<SelectMenu ariaLabel="Filter programs by department" value={departmentFilter} onChange={(value) => { setDepartmentFilter(value); list.setPage(1) }} options={[{ value: '', label: 'All departments' }, ...(refs.departments ?? []).map((department) => ({ value: department._id, label: department.name }))]} /></div>}</div>
-      {(programsPage ? catalogLoading : list.loading) ? <div className="mt-5"><LoadingState /></div> : visibleItems.length === 0 ? <div className="mt-5"><EmptyState /></div> : <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr>{config.fields.slice(0, 4).map((field) => <th key={field.name} className="px-4 py-3">{field.label}</th>)}<th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead><tbody>{visibleItems.map((item) => <tr key={item._id} className="border-t border-slate-100">{config.fields.slice(0, 4).map((field) => <td key={field.name} className="px-4 py-3">{display(item, field)}</td>)}<td className="px-4 py-3"><StatusBadge status={item.status} /></td><td className="space-x-3 whitespace-nowrap px-4 py-3"><button type="button" onClick={() => startEdit(item)} className="font-medium text-blue-700">Edit</button>{resource === 'academic-terms' ? <>{item.status === 'upcoming' && <button type="button" onClick={() => action(item, 'activate')} className="font-medium text-blue-700">Activate</button>}{item.status === 'active' && <button type="button" onClick={() => action(item, 'complete')} className="font-medium text-blue-700">Complete</button>}</> : item.status === 'active' && <button type="button" onClick={() => action(item, 'archive')} className="font-medium text-rose-700">Archive</button>}</td></tr>)}</tbody></table></div>}
-      <Pager page={list.page} total={visibleTotal} limit={list.limit} onPageChange={list.setPage} disabled={programsPage ? catalogLoading : list.loading} />
+      <div className="mt-8 flex flex-wrap items-end gap-3"><input aria-label="Search records" placeholder={resource === 'departments' ? 'Search name' : resource === 'sections' ? 'Search program or section' : 'Search code or name'} value={search} onChange={(event) => { setSearch(event.target.value); list.setPage(1) }} className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />{resource === 'programs' && <div className="ml-auto w-full max-w-xs text-sm font-medium text-slate-700">Department<SelectMenu ariaLabel="Filter programs by department" value={departmentFilter} onChange={(value) => { setDepartmentFilter(value); list.setPage(1) }} options={[{ value: '', label: 'All departments' }, ...(refs.departments ?? []).map((department) => ({ value: department._id, label: department.name }))]} /></div>}</div>
+      {(catalogPage ? catalogLoading : list.loading) ? <div className="mt-5"><LoadingState /></div> : visibleItems.length === 0 ? <div className="mt-5"><EmptyState /></div> : <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr>{config.fields.slice(0, 4).map((field) => <th key={field.name} className="px-4 py-3">{field.label}</th>)}<th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead><tbody>{visibleItems.map((item) => <tr key={item._id} className="border-t border-slate-100">{config.fields.slice(0, 4).map((field) => <td key={field.name} className="px-4 py-3">{display(item, field)}</td>)}<td className="px-4 py-3"><StatusBadge status={item.status} /></td><td className="space-x-3 whitespace-nowrap px-4 py-3"><button type="button" onClick={() => startEdit(item)} className="font-medium text-blue-700">Edit</button>{resource === 'academic-terms' ? <>{item.status === 'upcoming' && <button type="button" onClick={() => action(item, 'activate')} className="font-medium text-blue-700">Activate</button>}{item.status === 'active' && <button type="button" onClick={() => action(item, 'complete')} className="font-medium text-blue-700">Complete</button>}</> : item.status === 'active' && <button type="button" onClick={() => action(item, 'archive')} className="font-medium text-rose-700">Archive</button>}</td></tr>)}</tbody></table></div>}
+      <Pager page={list.page} total={visibleTotal} limit={list.limit} onPageChange={list.setPage} disabled={catalogPage ? catalogLoading : list.loading} />
     </section>
   )
 }

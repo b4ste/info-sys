@@ -10,6 +10,7 @@ const studentFields = [
 const facultyFields = [
   ['userId', 'Account', 'users'], ['employeeNumber', 'Employee number'], ['firstName', 'First name'], ['lastName', 'Last name'], ['departmentId', 'Department', 'departments'], ['contactEmail', 'Contact email', 'email'],
 ]
+const accountFields = new Set(['firstName', 'middleName', 'lastName', 'contactEmail'])
 
 export default function ProfileManagementPage({ kind }) {
   const resource = kind === 'student' ? 'students' : 'faculty'
@@ -20,6 +21,7 @@ export default function ProfileManagementPage({ kind }) {
   const [editing, setEditing] = useState(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const selectedAccount = (refs.users ?? []).find((account) => account._id === form.userId)
 
   useEffect(() => {
     let active = true
@@ -39,14 +41,23 @@ export default function ProfileManagementPage({ kind }) {
     event.preventDefault()
     setError('')
     setMessage('')
+    if (!selectedAccount) {
+      setError('Select an account before saving the profile.')
+      return
+    }
     const data = {}
     for (const [name, , type] of fields) {
       if (editing && name === 'userId') continue
+      if (accountFields.has(name)) continue
       const value = String(form[name] ?? '').trim()
       if (!value && ['middleName', 'birthDate', 'phone'].includes(name)) continue
       if (!value && name === 'sectionId') { if (editing) data.sectionId = null; continue }
       data[name] = type === 'number' || (type === 'yearLevel' && value !== 'irregular') ? Number(value) : type === 'date' ? new Date(`${value}T00:00:00`).toISOString() : value
     }
+    data.firstName = selectedAccount.firstName
+    data.lastName = selectedAccount.lastName
+    if (kind === 'student') data.middleName = selectedAccount.middleName?.trim() || null
+    data.contactEmail = selectedAccount.email
     try {
       await api(`/${resource}${editing ? `/${editing._id}` : ''}`, { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(data) })
       setMessage(editing ? 'Profile updated.' : 'Profile created.')
@@ -68,7 +79,7 @@ export default function ProfileManagementPage({ kind }) {
     <form onSubmit={save} className="mt-7 rounded-xl border border-slate-200 bg-white p-6">
       <div className="mb-5 flex items-center justify-between"><h2 className="font-semibold">{editing ? 'Edit profile' : 'Add profile'}</h2>{editing && <button type="button" onClick={() => { setEditing(null); setForm({}) }} className="text-sm text-slate-600 underline">Cancel</button>}</div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([name, label, type]) => <div key={name} className="text-sm font-medium text-slate-700"><span>{label}</span>
-        {type === 'yearLevel' ? <SelectMenu ariaLabel={label} required value={form[name] ?? ''} onChange={(value) => setForm({ ...form, yearLevel: value, sectionId: '' })} options={[...((refs.programs ?? []).find((program) => program._id === form.programId)?.yearLevels ?? []).map((year) => ({ value: year, label: `${year}${year % 10 === 1 && year % 100 !== 11 ? 'st' : year % 10 === 2 && year % 100 !== 12 ? 'nd' : year % 10 === 3 && year % 100 !== 13 ? 'rd' : 'th'} year` })), { value: 'irregular', label: 'Irregular' }]} /> : ['users', 'programs', 'sections', 'departments'].includes(type) ? <SelectMenu ariaLabel={label} disabled={(editing && name === 'userId') || (name === 'sectionId' && form.yearLevel === 'irregular')} required={name !== 'sectionId' && !(editing && name === 'userId')} value={form[name] ?? ''} onChange={(value) => setForm({ ...form, [name]: value, ...(name === 'programId' ? { yearLevel: '', sectionId: '' } : {}) })} options={[...(name === 'sectionId' ? [{ value: '', label: 'None' }] : []), ...options(type)]} /> : <input aria-label={label} required={!['middleName', 'birthDate', 'phone'].includes(name)} type={name === 'phone' ? 'tel' : type === 'date' ? 'date' : type === 'email' ? 'email' : type === 'number' ? 'number' : 'text'} inputMode={name === 'phone' ? 'numeric' : undefined} pattern={name === 'phone' ? '[0-9]*' : undefined} maxLength={name === 'phone' ? 40 : undefined} min={type === 'number' ? 1 : undefined} value={form[name] ?? ''} onChange={(event) => setForm({ ...form, [name]: name === 'phone' ? event.target.value.replace(/\D/g, '') : event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />}
+        {type === 'yearLevel' ? <SelectMenu ariaLabel={label} required value={form[name] ?? ''} onChange={(value) => setForm({ ...form, yearLevel: value, sectionId: '' })} options={[...((refs.programs ?? []).find((program) => program._id === form.programId)?.yearLevels ?? []).map((year) => ({ value: year, label: `${year}${year % 10 === 1 && year % 100 !== 11 ? 'st' : year % 10 === 2 && year % 100 !== 12 ? 'nd' : year % 10 === 3 && year % 100 !== 13 ? 'rd' : 'th'} year` })), { value: 'irregular', label: 'Irregular' }]} /> : ['users', 'programs', 'sections', 'departments'].includes(type) ? <SelectMenu ariaLabel={label} disabled={(editing && name === 'userId') || (name === 'sectionId' && form.yearLevel === 'irregular')} required={name !== 'sectionId' && !(editing && name === 'userId')} value={form[name] ?? ''} onChange={(value) => setForm({ ...form, [name]: value, ...(name === 'programId' ? { yearLevel: '', sectionId: '' } : {}) })} options={[...(name === 'sectionId' ? [{ value: '', label: 'None' }] : []), ...options(type)]} /> : <input aria-label={label} required={!['middleName', 'birthDate', 'phone', 'contactEmail'].includes(name)} type={name === 'phone' ? 'tel' : type === 'date' ? 'date' : type === 'email' ? 'email' : type === 'number' ? 'number' : 'text'} inputMode={name === 'phone' ? 'numeric' : undefined} pattern={name === 'phone' ? '[0-9]*' : undefined} maxLength={name === 'phone' ? 40 : undefined} min={type === 'number' ? 1 : undefined} value={accountFields.has(name) ? selectedAccount?.[name] ?? '' : form[name] ?? ''} readOnly={accountFields.has(name)} onChange={accountFields.has(name) ? undefined : (event) => setForm({ ...form, [name]: name === 'phone' ? event.target.value.replace(/\D/g, '') : event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5 read-only:cursor-default read-only:bg-slate-50" />}
       </div>)}</div>
       <button type="submit" className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white">{editing ? 'Save changes' : 'Create profile'}</button>
     </form>

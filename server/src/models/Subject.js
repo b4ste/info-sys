@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 
 const schema = new mongoose.Schema({
+  departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
   code: { type: String, required: true, trim: true, uppercase: true, unique: true },
   name: { type: String, required: true, trim: true },
   description: { type: String, trim: true },

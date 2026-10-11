@@ -27,6 +27,7 @@ async function requireActive(Model, id, label) {
 
 export async function validateAcademicRelationship(resource, data) {
   if (resource === 'programs') await requireActive(Department, data.departmentId, 'Department')
+  if (resource === 'subjects' && data.departmentId) await requireActive(Department, data.departmentId, 'Department')
   if (resource === 'sections') {
     const program = await requireActive(Program, data.programId, 'Program')
     if (!program.yearLevels.includes(data.yearLevel)) invalid('Year level is not offered by this program.')
