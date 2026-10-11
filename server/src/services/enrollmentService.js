@@ -1,6 +1,7 @@
 import AcademicTerm from '../models/AcademicTerm.js'
 import ClassOffering from '../models/ClassOffering.js'
 import Student from '../models/Student.js'
+import { enrollmentWindow } from './enrollmentWindow.js'
 
 function conflict(message) {
   const error = new Error(message)
@@ -14,8 +15,8 @@ export async function enrollmentEligibility(student, offering, { allowUpcoming =
   const term = await AcademicTerm.findById(offering.academicTermId)
   if (!term || (allowUpcoming ? term.status === 'completed' : term.status !== 'active')) conflict('The offering term is not available for enrollment.')
   if (!allowUpcoming) {
-    const now = new Date()
-    if (now < term.enrollmentStart || now > term.enrollmentEnd) conflict('Enrollment is not open for this term.')
+    const window = enrollmentWindow(term)
+    if (!window.open) conflict(window.message)
   }
   if (String(student.programId) !== String(offering.programId) || (student.yearLevel !== 'irregular' && student.yearLevel !== offering.yearLevel)) conflict('This offering does not match your program and year level.')
   if (offering.sectionId && String(student.sectionId ?? '') !== String(offering.sectionId)) conflict('This offering does not match your section.')

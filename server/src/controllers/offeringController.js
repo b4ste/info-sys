@@ -7,6 +7,7 @@ import Student from '../models/Student.js'
 import AcademicTerm from '../models/AcademicTerm.js'
 import { audit } from '../services/academicService.js'
 import { facultyOwnsOffering, validateOffering } from '../services/offeringService.js'
+import { enrollmentWindow } from '../services/enrollmentWindow.js'
 import { offeringSchema, offeringStatusSchema } from '../validators/offeringSchema.js'
 
 const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20), status: z.enum(['open', 'closed', 'completed']).optional(), academicTermId: z.string().optional(), programId: z.string().optional() })
@@ -57,7 +58,10 @@ export async function listOfferings(request, response) {
     ClassOffering.find(filter).populate('subjectId', 'code name units').populate('academicTermId', 'academicYear termNumber status enrollmentStart enrollmentEnd').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
     ClassOffering.countDocuments(filter),
   ])
-  return response.json({ success: true, data: { items, page, limit, total } })
+  const visibleItems = request.user.role === 'student'
+    ? items.map((item) => ({ ...item.toObject(), enrollmentWindow: enrollmentWindow(item.academicTermId) }))
+    : items
+  return response.json({ success: true, data: { items: visibleItems, page, limit, total } })
 }
 
 export async function getOffering(request, response) {
