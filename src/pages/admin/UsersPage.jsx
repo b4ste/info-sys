@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { EmptyState, LoadingState, Notice, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
+import SelectMenu from '../../components/SelectMenu.jsx'
 import { useAuth } from '../../context/useAuth.js'
 import { useApiList } from '../../hooks/useApiList.js'
 import { api } from '../../services/api.js'
@@ -97,18 +98,14 @@ export default function UsersPage() {
       <div className="grid gap-4 sm:grid-cols-3"><NameFields value={newName} onChange={(field, value) => setNewName((current) => ({ ...current, [field]: value }))} /></div>
       <div className="mt-4 grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
         <label className="text-sm font-medium">Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-        <label className="text-sm font-medium">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="student">Student</option><option value="faculty">Faculty</option><option value="admin">Admin</option></select></label>
+        <div className="text-sm font-medium">Role<SelectMenu ariaLabel="Role" value={role} onChange={setRole} options={[{ value: 'student', label: 'Student' }, { value: 'faculty', label: 'Faculty' }, { value: 'admin', label: 'Admin' }]} /></div>
         <button type="submit" disabled={busy} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Sending email…' : 'Create account'}</button>
       </div>
       <p className="mt-3 text-xs text-slate-500">A random temporary password will be sent to this email address. The user must change it after signing in.</p>
     </form>
     <div className="mt-7 flex flex-wrap items-end justify-between gap-4">
       <div className="flex w-full max-w-lg gap-3"><input aria-label="Search accounts" placeholder="Search name or email" value={search} onChange={(event) => setSearch(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /><button type="button" onClick={() => { list.setPage(1); setQuery(search) }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Search</button></div>
-      <label htmlFor="account-role-filter" className="text-sm font-medium">Filter by role
-        <select id="account-role-filter" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); list.setPage(1) }} className="mt-1 block min-w-44 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
-          {roleFilters.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}
-        </select>
-      </label>
+      <div className="min-w-44 text-sm font-medium">Filter by role<SelectMenu ariaLabel="Filter by role" value={roleFilter} onChange={(value) => { setRoleFilter(value); list.setPage(1) }} options={roleFilters.map(([value, label]) => ({ value, label }))} /></div>
     </div>
     {editingUser && <form onSubmit={saveName} className="mt-5 rounded-xl border border-slate-200 bg-white p-4"><p className="text-sm font-semibold">Edit name for {editingUser.email}</p>{editingUser.name && !editingUser.firstName && <p className="mt-1 text-xs text-slate-500">Current name: {editingUser.name}</p>}<div className="mt-3 grid gap-4 sm:grid-cols-3"><NameFields value={nameDraft} onChange={(field, value) => setNameDraft((current) => ({ ...current, [field]: value }))} /></div><div className="mt-4 flex gap-3"><button type="submit" disabled={savingName} className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Save name</button><button type="button" onClick={() => setEditingUser(null)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium">Cancel</button></div></form>}
     {list.loading ? <div className="mt-5"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-5"><EmptyState>No accounts match your filters.</EmptyState></div> : <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Action</th></tr></thead><tbody>{list.items.map((user) => <tr key={user._id} className="border-t border-slate-100"><td className="px-5 py-4">{user.name || '—'}</td><td className="px-5 py-4">{user.email}</td><td className="px-5 py-4"><RoleBadge role={user.role} /></td><td className="px-5 py-4"><StatusBadge status={user.status} /></td><td className="px-5 py-4"><div className="flex gap-4"><button type="button" onClick={() => { setEditingUser(user); setNameDraft({ firstName: user.firstName || '', middleName: user.middleName || '', lastName: user.lastName || '' }) }} className="font-medium text-blue-700 hover:underline">Edit name</button><button type="button" onClick={() => toggleStatus(user)} className="font-medium text-blue-700 hover:underline">{user.status === 'active' ? 'Deactivate' : 'Activate'}</button></div></td></tr>)}</tbody></table></div>}
