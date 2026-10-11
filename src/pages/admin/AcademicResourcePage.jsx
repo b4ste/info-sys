@@ -106,7 +106,11 @@ export default function AcademicResourcePage({ resource }) {
       reset()
       if (catalogPage) { list.setPage(1); setCatalogRevision((revision) => revision + 1) }
       else await list.refresh()
-    } catch (error) { setActionError(error.message) }
+    } catch (error) {
+      setActionError(resource === 'subjects' && error.status === 400 && error.message === 'Invalid input.'
+        ? 'The API rejected the subject data. It may still be running an older version that does not accept Department; update and restart the backend, then try again.'
+        : error.message)
+    }
     finally { setBusy(false) }
   }
 

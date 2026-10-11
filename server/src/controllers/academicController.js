@@ -14,7 +14,7 @@ const listSchema = z.object({
 })
 
 function badInput(response, parsed) {
-  return response.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input.', details: parsed.error.flatten().fieldErrors } })
+  return response.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Invalid input.', details: parsed.error.flatten().fieldErrors } })
 }
 
 function missing(response) {
