@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { EmptyState, LoadingState, Notice, PageHeader, Pager, StatusBadge } from '../components/Page.jsx'
 import { useAuth } from '../context/useAuth.js'
@@ -15,14 +15,19 @@ export default function CorrectionRequestsPage() {
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [gradesLoading, setGradesLoading] = useState(!admin)
+  const [offerings, setOfferings] = useState([])
+  const [offeringId, setOfferingId] = useState('')
+  const [gradesLoading, setGradesLoading] = useState(true)
 
   useEffect(() => {
-    if (admin) return
     let active = true
-    apiAll('/grades?status=published').then((items) => { if (active) setGrades(items) }).catch((requestError) => { if (active) setError(requestError.message) }).finally(() => { if (active) setGradesLoading(false) })
+    Promise.all([apiAll('/grades?status=published'), apiAll('/class-offerings')]).then(([gradeItems, offeringItems]) => { if (active) { setGrades(gradeItems); setOfferings(offeringItems) } }).catch((requestError) => { if (active) setError(requestError.message) }).finally(() => { if (active) setGradesLoading(false) })
     return () => { active = false }
-  }, [admin])
+  }, [])
+
+  const offeringById = useMemo(() => new Map(offerings.map((offering) => [String(offering._id), offering])), [offerings])
+  const gradeById = useMemo(() => new Map(grades.map((grade) => [String(grade._id), grade])), [grades])
+  const classGrades = useMemo(() => grades.filter((grade) => String(grade.enrollmentId?.classOfferingId?._id ?? grade.enrollmentId?.classOfferingId) === offeringId), [grades, offeringId])
 
   async function submit(event) {
     event.preventDefault()
@@ -31,7 +36,7 @@ export default function CorrectionRequestsPage() {
     try {
       await api('/grade-correction-requests', { method: 'POST', body: JSON.stringify({ gradeId, proposedFinalGrade: Number(proposedFinalGrade), reason }) })
       setMessage('Correction request submitted.')
-      setGradeId(''); setProposedFinalGrade(''); setReason('')
+      setOfferingId(''); setGradeId(''); setProposedFinalGrade(''); setReason('')
       await list.refresh()
     } catch (requestError) { setError(requestError.message) }
   }
@@ -51,8 +56,8 @@ export default function CorrectionRequestsPage() {
     <Notice error={error || list.error} message={message} />
     {!admin && gradesLoading && <div className="mt-7"><LoadingState /></div>}
     {!admin && !gradesLoading && !error && grades.length === 0 && <div className="mt-7 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">No published grades are available for correction in your assigned classes. Enter and publish a grade from <Link to="/faculty/classes" className="font-semibold text-blue-700 underline">My classes</Link> first.</div>}
-    {!admin && !gradesLoading && grades.length > 0 && <form onSubmit={submit} className="mt-7 grid gap-4 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-2"><label className="text-sm font-medium">Published grade<select required value={gradeId} onChange={(event) => setGradeId(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="">Select grade…</option>{grades.map((grade) => <option key={grade._id} value={grade._id}>{grade.enrollmentId?.studentId?.studentNumber} · {grade.finalGrade}</option>)}</select></label><label className="text-sm font-medium">Proposed official grade<input required type="number" step="any" value={proposedFinalGrade} onChange={(event) => setProposedFinalGrade(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5" /></label><label className="text-sm font-medium sm:col-span-2">Reason<textarea required minLength={5} value={reason} onChange={(event) => setReason(event.target.value)} rows={3} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label><button type="submit" className="w-fit rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white">Submit request</button></form>}
-    {list.loading ? <div className="mt-7"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-7"><EmptyState>No correction requests submitted yet.</EmptyState></div> : <div className="mt-7 space-y-3">{list.items.map((item) => <article key={item._id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5"><div><p className="font-semibold">{item.previousFinalGrade} → {item.proposedFinalGrade}</p><p className="mt-1 text-sm text-slate-600">{item.reason}</p><p className="mt-1 text-xs text-slate-500">Requested {new Date(item.createdAt).toLocaleString()}</p></div><div className="flex items-center gap-3"><StatusBadge status={item.status} />{admin && ['pending', 'reviewing'].includes(item.status) && <button type="button" onClick={() => decide(item, 'approve')} className="text-sm font-medium text-blue-700">{item.status === 'reviewing' ? 'Retry approval' : 'Approve'}</button>}{admin && item.status === 'pending' && <button type="button" onClick={() => decide(item, 'reject')} className="text-sm font-medium text-rose-700">Reject</button>}</div></article>)}</div>}
+    {!admin && !gradesLoading && grades.length > 0 && <form onSubmit={submit} className="mt-7 grid gap-4 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-2"><label className="text-sm font-medium">Course<select required value={offeringId} onChange={(event) => { setOfferingId(event.target.value); setGradeId('') }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="">Select course…</option>{offerings.map((offering) => <option key={offering._id} value={offering._id}>{offering.subjectId?.code} · {offering.subjectId?.name}</option>)}</select></label><label className="text-sm font-medium">Enrolled student (current grade)<select required disabled={!offeringId} value={gradeId} onChange={(event) => setGradeId(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 disabled:opacity-50"><option value="">Select student…</option>{classGrades.map((grade) => <option key={grade._id} value={grade._id}>{grade.enrollmentId?.studentId?.studentNumber} · {grade.enrollmentId?.studentId?.firstName} {grade.enrollmentId?.studentId?.lastName} · {grade.finalGrade}</option>)}</select></label><label className="text-sm font-medium sm:col-span-2">Proposed grade<input required type="number" step="any" value={proposedFinalGrade} onChange={(event) => setProposedFinalGrade(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5" /></label><label className="text-sm font-medium sm:col-span-2">Reason<textarea required minLength={5} value={reason} onChange={(event) => setReason(event.target.value)} rows={3} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label><button type="submit" className="w-fit rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white">Submit request</button></form>}
+    {list.loading ? <div className="mt-7"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-7"><EmptyState>No correction requests submitted yet.</EmptyState></div> : <div className="mt-7 rounded-xl border border-slate-200 bg-white p-6"><h2 className="text-lg font-semibold">Submitted Correction Request</h2><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Course</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Change grade</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3">Review status</th></tr></thead><tbody>{list.items.map((item) => { const grade = gradeById.get(String(item.gradeId)); const student = grade?.enrollmentId?.studentId; const offering = offeringById.get(String(grade?.enrollmentId?.classOfferingId?._id ?? grade?.enrollmentId?.classOfferingId)); return <tr key={item._id} className="border-t border-slate-100"><td className="px-4 py-3">{student ? `${student.studentNumber} · ${student.firstName} ${student.lastName}` : '—'}</td><td className="px-4 py-3">{offering?.subjectId?.code ?? '—'}</td><td className="px-4 py-3">{offering?.subjectId?.name ?? '—'}</td><td className="px-4 py-3">{item.previousFinalGrade} → {item.proposedFinalGrade}</td><td className="px-4 py-3">{item.reason}</td><td className="px-4 py-3"><div className="flex items-center gap-3"><StatusBadge status={item.status} />{admin && ['pending', 'reviewing'].includes(item.status) && <button type="button" onClick={() => decide(item, 'approve')} className="font-medium text-blue-700">{item.status === 'reviewing' ? 'Retry approval' : 'Approve'}</button>}{admin && item.status === 'pending' && <button type="button" onClick={() => decide(item, 'reject')} className="font-medium text-rose-700">Reject</button>}</div></td></tr> })}</tbody></table></div></div>}
     <Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} />
   </section>
 }

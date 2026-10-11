@@ -6,10 +6,19 @@ import Faculty from '../models/Faculty.js'
 import Grade from '../models/Grade.js'
 import Student from '../models/Student.js'
 import { audit } from '../services/academicService.js'
-import { calculateGrade, facultyGradeContext, gradeContext, validateOfficialGrade } from '../services/gradeService.js'
+import { calculateGrade, facultyGradeContext, gradeContext, percentToGradePoint, validateOfficialGrade } from '../services/gradeService.js'
 
 const componentSchema = z.object({ name: z.string().trim().min(1), earnedScore: z.number().min(0), maxScore: z.number().positive() }).strict()
-const draftSchema = z.object({ components: z.array(componentSchema).optional(), finalGrade: z.number().nullable().optional() }).strict()
+const percentScore = z.number().min(0).max(100).nullable().optional()
+const draftSchema = z.object({ components: z.array(componentSchema).optional(), finalGrade: z.number().nullable().optional(), midtermScore: percentScore, finalsScore: percentScore }).strict()
+
+// Students only see the midterm until the official final grade is published.
+function forStudent(grade) {
+  const item = grade.toObject()
+  if (item.status !== 'published') for (const key of ['finalsScore', 'finalsGrade', 'calculatedGrade', 'finalGrade', 'components']) delete item[key]
+  if (!item.midtermPublished) for (const key of ['midtermScore', 'midtermGrade']) delete item[key]
+  return item
+}
 const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20), status: z.enum(['draft', 'submitted', 'finalized', 'published']).optional(), classOfferingId: z.string().optional() })
 
 function missing(response) {
@@ -33,7 +42,7 @@ async function canSeeGrade(user, grade) {
     return Boolean(faculty && String(context.offering.facultyId) === faculty.id)
   }
   const student = await Student.findOne({ userId: user.id })
-  return Boolean(student && grade.status === 'published' && String(context.enrollment.studentId) === student.id)
+  return Boolean(student && (grade.status === 'published' || grade.midtermPublished) && String(context.enrollment.studentId) === student.id)
 }
 
 export function createGradeController(policy) {
@@ -45,12 +54,33 @@ export function createGradeController(policy) {
     if (existing && !['draft', 'submitted'].includes(existing.status)) return conflict(response, 'Finalized or published grades cannot be edited directly.')
     if ('finalGrade' in parsed.data && parsed.data.finalGrade !== null) validateOfficialGrade(parsed.data.finalGrade, policy)
 
-    const entered = parsed.data.components ?? existing?.components.map((item) => ({ name: item.name, earnedScore: item.earnedScore, maxScore: item.maxScore })) ?? []
-    const { components, calculatedGrade } = calculateGrade(entered, context.offering.gradeComponents, policy.decimals)
     const grade = existing ?? new Grade({ enrollmentId })
-    grade.components = components
-    grade.calculatedGrade = calculatedGrade
-    if ('finalGrade' in parsed.data) grade.finalGrade = parsed.data.finalGrade
+    if ('midtermScore' in parsed.data || 'finalsScore' in parsed.data) {
+      const { midtermScore, finalsScore } = parsed.data
+      if (midtermScore !== undefined) {
+        if (grade.midtermPublished && midtermScore !== grade.midtermScore) return conflict(response, 'Published midterm grades cannot be edited.')
+        grade.midtermScore = midtermScore ?? undefined
+        grade.midtermGrade = midtermScore == null ? undefined : percentToGradePoint(midtermScore)
+      }
+      if (finalsScore !== undefined) {
+        grade.finalsScore = finalsScore ?? undefined
+        grade.finalsGrade = finalsScore == null ? undefined : percentToGradePoint(finalsScore)
+      }
+      if (grade.midtermScore == null || grade.finalsScore == null) {
+        grade.calculatedGrade = undefined
+        grade.finalGrade = undefined
+      } else {
+        const average = (grade.midtermScore + grade.finalsScore) / 2
+        grade.calculatedGrade = Number(average.toFixed(policy.decimals))
+        grade.finalGrade = percentToGradePoint(average)
+      }
+    } else {
+      const entered = parsed.data.components ?? existing?.components.map((item) => ({ name: item.name, earnedScore: item.earnedScore, maxScore: item.maxScore })) ?? []
+      const { components, calculatedGrade } = calculateGrade(entered, context.offering.gradeComponents, policy.decimals)
+      grade.components = components
+      grade.calculatedGrade = calculatedGrade
+      if ('finalGrade' in parsed.data) grade.finalGrade = parsed.data.finalGrade
+    }
     grade.updatedBy = request.user.id
     await grade.save()
     return response.status(existing ? 200 : 201).json({ success: true, data: { item: grade } })
@@ -95,18 +125,33 @@ export function createGradeController(policy) {
       const student = await Student.findOne({ userId: request.user.id })
       if (!student) return response.json({ success: true, data: { items: [], page, limit, total: 0 } })
       const enrollmentIds = await Enrollment.find({ studentId: student.id }).distinct('_id')
-      const filter = { enrollmentId: { $in: enrollmentIds }, status: 'published' }
+      const filter = { enrollmentId: { $in: enrollmentIds }, $or: [{ status: 'published' }, { midtermPublished: true }] }
       const [items, total] = await Promise.all([
-        Grade.find(filter).populate({ path: 'enrollmentId', populate: { path: 'classOfferingId', populate: 'subjectId' } }).sort({ publishedAt: -1 }).skip((page - 1) * limit).limit(limit),
+        Grade.find(filter).populate({ path: 'enrollmentId', populate: { path: 'classOfferingId', populate: 'subjectId' } }).sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit),
         Grade.countDocuments(filter),
       ])
-      return response.json({ success: true, data: { items, page, limit, total } })
+      return response.json({ success: true, data: { items: items.map(forStudent), page, limit, total } })
     },
     async get(request, response) {
       if (!mongoose.isValidObjectId(request.params.id)) return missing(response)
       const item = await Grade.findById(request.params.id)
       if (!item || !await canSeeGrade(request.user, item)) return missing(response)
-      return response.json({ success: true, data: { item } })
+      return response.json({ success: true, data: { item: request.user.role === 'student' ? forStudent(item) : item } })
+    },
+    async publishMidterm(request, response) {
+      if (!mongoose.isValidObjectId(request.params.id)) return missing(response)
+      const grade = await Grade.findById(request.params.id)
+      if (!grade) return missing(response)
+      const context = await facultyGradeContext(request.user.id, grade.enrollmentId)
+      if (!context) return response.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You cannot grade this enrollment.' } })
+      if (grade.midtermScore == null) return conflict(response, 'A midterm score is required before publishing.')
+      if (grade.midtermPublished) return conflict(response, 'Midterm grade is already published.')
+      grade.midtermPublished = true
+      grade.midtermPublishedAt = new Date()
+      grade.updatedBy = request.user.id
+      await grade.save()
+      await audit(request.user.id, 'grade.midterm.published', 'Grade', grade.id)
+      return response.json({ success: true, data: { item: grade } })
     },
     async submit(request, response) {
       return transition(request, response, 'draft', 'submitted', true)

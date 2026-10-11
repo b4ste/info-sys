@@ -17,6 +17,12 @@ const revisionSchema = new mongoose.Schema({
 const schema = new mongoose.Schema({
   enrollmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Enrollment', required: true, unique: true },
   components: { type: [componentSchema], default: [] },
+  midtermScore: Number,
+  midtermGrade: Number,
+  midtermPublished: { type: Boolean, default: false },
+  midtermPublishedAt: Date,
+  finalsScore: Number,
+  finalsGrade: Number,
   calculatedGrade: Number,
   finalGrade: Number,
   status: { type: String, enum: ['draft', 'submitted', 'finalized', 'published'], default: 'draft' },
