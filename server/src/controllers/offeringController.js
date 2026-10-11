@@ -88,7 +88,7 @@ export async function updateOffering(request, response) {
   const item = await ClassOffering.findById(request.params.id)
   if (!item) return missing(response)
   if (item.status === 'completed') return response.status(409).json({ success: false, error: { code: 'OFFERING_LOCKED', message: 'Completed offerings cannot be edited.' } })
-  await validateOffering({ ...item.toObject(), ...parsed.data }, item)
+  await validateOffering({ ...item.toObject(), ...parsed.data }, item, Object.keys(parsed.data))
   const updated = await ClassOffering.findOneAndUpdate(
     { _id: item.id, status: { $ne: 'completed' }, ...(parsed.data.capacity && { enrollmentCount: { $lte: parsed.data.capacity } }) },
     { $set: parsed.data },

@@ -13,7 +13,7 @@ function invalid(message) {
   throw error
 }
 
-export async function validateOffering(data, existing = null) {
+export async function validateOffering(data, existing = null, changedFields = []) {
   const [subject, term, program, faculty] = await Promise.all([
     Subject.findById(data.subjectId),
     AcademicTerm.findById(data.academicTermId),
@@ -42,7 +42,7 @@ export async function validateOffering(data, existing = null) {
     const changed = locked.some((field) => String(existing[field] ?? '') !== String(data[field] ?? ''))
     if (changed) invalid('Offering academic details cannot be changed. Create a new offering instead.')
     if (String(existing.facultyId) !== String(data.facultyId) && await Grade.exists({ enrollmentId: { $in: await Enrollment.find({ classOfferingId: existing.id }).distinct('_id') } })) invalid('Assigned faculty cannot change after grade entry begins.')
-    if (data.gradeComponents && await Grade.exists({ enrollmentId: { $in: await Enrollment.find({ classOfferingId: existing.id }).distinct('_id') } })) invalid('Grade components cannot change after grade entry begins.')
+    if (changedFields.includes('gradeComponents') && await Grade.exists({ enrollmentId: { $in: await Enrollment.find({ classOfferingId: existing.id }).distinct('_id') } })) invalid('Grade components cannot change after grade entry begins.')
   }
 }
 
