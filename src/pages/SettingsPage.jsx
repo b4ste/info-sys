@@ -29,7 +29,7 @@ export default function SettingsPage() {
       <p className="mt-2 text-slate-600">Signed in as {user.email}</p>
       {user.mustChangePassword && <p className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Change your temporary password to continue.</p>}
       <form onSubmit={submit} className="mt-8 space-y-5 rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold">Change password</h2>
+        <h2 className="text-lg font-semibold">Change password.</h2>
         <div><label htmlFor="current-password" className="mb-1 block text-sm font-medium">Current password</label><PasswordInput id="current-password" label="current password" autoComplete="current-password" required value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></div>
         <div><label htmlFor="new-password" className="mb-1 block text-sm font-medium">New password</label><PasswordInput id="new-password" label="new password" autoComplete="new-password" required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /><p className="mt-1 text-xs text-slate-500">Use an uppercase letter, a lowercase letter, and a special character.</p></div>
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
