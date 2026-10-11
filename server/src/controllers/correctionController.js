@@ -3,10 +3,10 @@ import { z } from 'zod'
 import Grade from '../models/Grade.js'
 import GradeCorrectionRequest from '../models/GradeCorrectionRequest.js'
 import { audit } from '../services/academicService.js'
-import { facultyGradeContext, validateOfficialGrade } from '../services/gradeService.js'
+import { facultyGradeContext, percentToGradePoint, validateOfficialGrade } from '../services/gradeService.js'
 import { objectId } from '../validators/academicSchemas.js'
 
-const requestSchema = z.object({ gradeId: objectId, proposedFinalGrade: z.number(), reason: z.string().trim().min(5).max(2000) }).strict()
+const requestSchema = z.object({ gradeId: objectId, component: z.enum(['midterm', 'finals']).optional(), proposedFinalGrade: z.number(), reason: z.string().trim().min(5).max(2000) }).strict()
 const rejectSchema = z.object({ reason: z.string().trim().min(1).max(1000).optional() }).strict()
 const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20), status: z.enum(['pending', 'reviewing', 'approved', 'rejected']).optional() })
 
@@ -23,18 +23,39 @@ function badInput(response, parsed) {
 }
 
 export function createCorrectionController(policy) {
+  async function applyCorrection(item, userId) {
+    const base = { _id: item.gradeId, status: 'published', 'revisions.correctionRequestId': { $ne: item.id } }
+    const revision = (previous, next) => ({ previousFinalGrade: previous, newFinalGrade: next, changedAt: new Date(), correctionRequestId: item.id })
+    if (!item.component) {
+      return Grade.findOneAndUpdate({ ...base, finalGrade: item.previousFinalGrade }, { $set: { finalGrade: item.proposedFinalGrade, updatedBy: userId }, $push: { revisions: revision(item.previousFinalGrade, item.proposedFinalGrade) } }, { returnDocument: 'after' })
+    }
+    const field = `${item.component}Score`
+    const current = await Grade.findOne({ ...base, [field]: item.previousFinalGrade })
+    if (!current || current.midtermScore == null || current.finalsScore == null) return null
+    const scores = { midterm: current.midtermScore, finals: current.finalsScore, [item.component]: item.proposedFinalGrade }
+    const average = (scores.midterm + scores.finals) / 2
+    const finalGrade = percentToGradePoint(average)
+    const set = { [field]: item.proposedFinalGrade, [`${item.component}Grade`]: percentToGradePoint(item.proposedFinalGrade), calculatedGrade: Number(average.toFixed(policy.decimals)), finalGrade, updatedBy: userId }
+    return Grade.findOneAndUpdate({ ...base, [field]: item.previousFinalGrade }, { $set: set, $push: { revisions: revision(current.finalGrade, finalGrade) } }, { returnDocument: 'after' })
+  }
+
   return {
     async create(request, response) {
       const parsed = requestSchema.safeParse(request.body)
       if (!parsed.success) return badInput(response, parsed)
-      validateOfficialGrade(parsed.data.proposedFinalGrade, policy)
+      const { component } = parsed.data
+      if (component) {
+        if (parsed.data.proposedFinalGrade < 0 || parsed.data.proposedFinalGrade > 100) return badInput(response, { error: { flatten: () => ({ fieldErrors: { proposedFinalGrade: ['Grade must be between 0 and 100.'] } }) } })
+      } else validateOfficialGrade(parsed.data.proposedFinalGrade, policy)
       const grade = await Grade.findById(parsed.data.gradeId)
       if (!grade || grade.status !== 'published') return conflict(response, 'Only published grades can be corrected.')
       const context = await facultyGradeContext(request.user.id, grade.enrollmentId)
       if (!context) return response.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You cannot correct this grade.' } })
-      if (grade.finalGrade === parsed.data.proposedFinalGrade) return conflict(response, 'Proposed grade must differ from the current official grade.')
+      const previous = component ? grade[`${component}Score`] : grade.finalGrade
+      if (previous == null) return conflict(response, 'There is no existing grade to correct.')
+      if (previous === parsed.data.proposedFinalGrade) return conflict(response, 'Proposed grade must differ from the current grade.')
       if (await GradeCorrectionRequest.exists({ gradeId: grade.id, status: { $in: ['pending', 'reviewing'] } })) return conflict(response, 'A correction request is already pending.')
-      const item = await GradeCorrectionRequest.create({ gradeId: grade.id, requestedBy: request.user.id, previousFinalGrade: grade.finalGrade, proposedFinalGrade: parsed.data.proposedFinalGrade, reason: parsed.data.reason })
+      const item = await GradeCorrectionRequest.create({ gradeId: grade.id, requestedBy: request.user.id, component, previousFinalGrade: previous, proposedFinalGrade: parsed.data.proposedFinalGrade, reason: parsed.data.reason })
       await audit(request.user.id, 'grade.correction.requested', 'GradeCorrectionRequest', item.id)
       return response.status(201).json({ success: true, data: { item } })
     },
@@ -65,14 +86,11 @@ export function createCorrectionController(policy) {
         if (!item) return missing(response)
         if (item.status !== 'reviewing') return conflict(response, 'This request has already been reviewed.')
       }
-      const grade = await Grade.findOneAndUpdate(
-        { _id: item.gradeId, status: 'published', finalGrade: item.previousFinalGrade, 'revisions.correctionRequestId': { $ne: item.id } },
-        { $set: { finalGrade: item.proposedFinalGrade, updatedBy: request.user.id }, $push: { revisions: { previousFinalGrade: item.previousFinalGrade, newFinalGrade: item.proposedFinalGrade, changedAt: new Date(), correctionRequestId: item.id } } },
-        { returnDocument: 'after' },
-      )
+      const grade = await applyCorrection(item, request.user.id)
       if (!grade) {
         const current = await Grade.findById(item.gradeId)
-        const alreadyApplied = current?.revisions.some((revision) => String(revision.correctionRequestId) === item.id) && current.finalGrade === item.proposedFinalGrade
+        const applied = item.component ? current?.[`${item.component}Score`] : current?.finalGrade
+        const alreadyApplied = current?.revisions.some((revision) => String(revision.correctionRequestId) === item.id) && applied === item.proposedFinalGrade
         if (!alreadyApplied) {
           await GradeCorrectionRequest.updateOne({ _id: item.id, status: 'reviewing' }, { $set: { status: 'pending' } })
           return conflict(response, 'The published grade changed. Review the request again.')

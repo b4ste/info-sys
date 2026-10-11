@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 const schema = new mongoose.Schema({
   gradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Grade', required: true },
   requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  component: { type: String, enum: ['midterm', 'finals'] },
   previousFinalGrade: { type: Number, required: true },
   proposedFinalGrade: { type: Number, required: true },
   reason: { type: String, required: true, trim: true },
