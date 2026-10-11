@@ -15,7 +15,7 @@ export async function validateProfile(kind, data) {
 
   if (kind === 'student') {
     const program = await Program.findById(data.programId)
-    if (!program || program.status !== 'active' || !program.yearLevels.includes(data.yearLevel)) invalid('Program and year level must be valid and active.')
+    if (!program || program.status !== 'active' || (data.yearLevel !== 'irregular' && !program.yearLevels.includes(data.yearLevel))) invalid('Program and year level must be valid and active.')
     if (data.sectionId) {
       const section = await Section.findById(data.sectionId)
       if (!section || section.status !== 'active' || String(section.programId) !== String(data.programId) || section.yearLevel !== data.yearLevel) invalid('Section must match the student program and year level.')

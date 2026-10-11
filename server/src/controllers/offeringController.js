@@ -23,7 +23,7 @@ async function permitted(request, offering) {
   if (request.user.role === 'admin') return true
   if (request.user.role === 'faculty') return Boolean(await facultyOwnsOffering(request.user.id, offering))
   const student = await Student.findOne({ userId: request.user.id })
-  return Boolean(student && String(student.programId) === String(offering.programId) && student.yearLevel === offering.yearLevel)
+  return Boolean(student && String(student.programId) === String(offering.programId) && (student.yearLevel === 'irregular' || student.yearLevel === offering.yearLevel))
 }
 
 export async function listOfferings(request, response) {
@@ -39,7 +39,7 @@ export async function listOfferings(request, response) {
     const activeTerm = await AcademicTerm.findOne({ status: 'active' })
     if (!student || !activeTerm) return response.json({ success: true, data: { items: [], page, limit, total: 0 } })
     filter.programId = student.programId
-    filter.yearLevel = student.yearLevel
+    if (student.yearLevel !== 'irregular') filter.yearLevel = student.yearLevel
     filter.academicTermId = activeTerm.id
     filter.status = 'open'
   }

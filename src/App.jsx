@@ -9,7 +9,6 @@ import AcademicResourcePage from './pages/admin/AcademicResourcePage.jsx'
 import AuditPage from './pages/admin/AuditPage.jsx'
 import EnrollmentApprovalsPage from './pages/admin/EnrollmentApprovalsPage.jsx'
 import GradeOversightPage from './pages/admin/GradeOversightPage.jsx'
-import OfferingsPage from './pages/admin/OfferingsPage.jsx'
 import ProfileManagementPage from './pages/admin/ProfileManagementPage.jsx'
 import UsersPage from './pages/admin/UsersPage.jsx'
 import LoginPage from './pages/auth/LoginPage.jsx'
@@ -23,7 +22,7 @@ import MyEnrollmentsPage from './pages/student/MyEnrollmentsPage.jsx'
 import MyGradesPage from './pages/student/MyGradesPage.jsx'
 import ProtectedRoute from './routes/ProtectedRoute.jsx'
 
-const academicResources = ['departments', 'programs', 'sections', 'subjects', 'curriculum-rules', 'academic-terms']
+const academicResources = ['departments', 'programs', 'sections', 'subjects', 'academic-terms']
 
 function App() {
   return (
@@ -58,7 +57,8 @@ function App() {
                   <Route path="students" element={<ProfileManagementPage kind="student" />} />
                   <Route path="faculty" element={<ProfileManagementPage kind="faculty" />} />
                   {academicResources.map((resource) => <Route key={resource} path={resource} element={<AcademicResourcePage resource={resource} />} />)}
-                  <Route path="offerings" element={<OfferingsPage />} />
+                  <Route path="curriculum-rules" element={<Navigate to="/admin" replace />} />
+                  <Route path="offerings" element={<Navigate to="/admin" replace />} />
                   <Route path="enrollments" element={<EnrollmentApprovalsPage />} />
                   <Route path="grades" element={<GradeOversightPage />} />
                   <Route path="corrections" element={<CorrectionRequestsPage />} />

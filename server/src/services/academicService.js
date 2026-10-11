@@ -1,5 +1,4 @@
 import AcademicTerm from '../models/AcademicTerm.js'
-import CurriculumRule from '../models/CurriculumRule.js'
 import Department from '../models/Department.js'
 import Program from '../models/Program.js'
 import Section from '../models/Section.js'
@@ -11,7 +10,6 @@ export const academicModels = {
   programs: Program,
   sections: Section,
   subjects: Subject,
-  'curriculum-rules': CurriculumRule,
   'academic-terms': AcademicTerm,
 }
 
@@ -29,17 +27,13 @@ async function requireActive(Model, id, label) {
 
 export async function validateAcademicRelationship(resource, data) {
   if (resource === 'programs') await requireActive(Department, data.departmentId, 'Department')
-  if (resource === 'sections' || resource === 'curriculum-rules') {
+  if (resource === 'sections') {
     const program = await requireActive(Program, data.programId, 'Program')
     if (!program.yearLevels.includes(data.yearLevel)) invalid('Year level is not offered by this program.')
   }
   if (resource === 'sections') {
     const term = await AcademicTerm.findById(data.academicTermId)
     if (!term || term.status === 'completed') invalid('Section requires a current or upcoming term.')
-  }
-  if (resource === 'curriculum-rules') {
-    await requireActive(Subject, data.subjectId, 'Subject')
-    if (data.effectiveFromTermId && !await AcademicTerm.exists({ _id: data.effectiveFromTermId })) invalid('Effective term does not exist.')
   }
 }
 

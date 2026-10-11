@@ -4,7 +4,7 @@ import { useApiList } from '../../hooks/useApiList.js'
 import { api, apiAll } from '../../services/api.js'
 
 const studentFields = [
-  ['userId', 'Account', 'users'], ['studentNumber', 'Student number'], ['firstName', 'First name'], ['middleName', 'Middle name'], ['lastName', 'Last name'], ['birthDate', 'Birth date', 'date'], ['contactEmail', 'Contact email', 'email'], ['phone', 'Phone'], ['programId', 'Program', 'programs'], ['yearLevel', 'Year level', 'number'], ['sectionId', 'Section', 'sections'],
+  ['userId', 'Account', 'users'], ['studentNumber', 'Student number'], ['firstName', 'First name'], ['middleName', 'Middle name'], ['lastName', 'Last name'], ['birthDate', 'Birth date', 'date'], ['contactEmail', 'Contact email', 'email'], ['phone', 'Phone'], ['programId', 'Program', 'programs'], ['yearLevel', 'Year level', 'yearLevel'], ['sectionId', 'Section', 'sections'],
 ]
 const facultyFields = [
   ['userId', 'Account', 'users'], ['employeeNumber', 'Employee number'], ['firstName', 'First name'], ['lastName', 'Last name'], ['departmentId', 'Department', 'departments'], ['contactEmail', 'Contact email', 'email'],
@@ -44,7 +44,7 @@ export default function ProfileManagementPage({ kind }) {
       const value = String(form[name] ?? '').trim()
       if (!value && ['middleName', 'birthDate', 'phone'].includes(name)) continue
       if (!value && name === 'sectionId') { if (editing) data.sectionId = null; continue }
-      data[name] = type === 'number' ? Number(value) : type === 'date' ? new Date(`${value}T00:00:00`).toISOString() : value
+      data[name] = type === 'number' || (type === 'yearLevel' && value !== 'irregular') ? Number(value) : type === 'date' ? new Date(`${value}T00:00:00`).toISOString() : value
     }
     try {
       await api(`/${resource}${editing ? `/${editing._id}` : ''}`, { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(data) })
@@ -58,7 +58,7 @@ export default function ProfileManagementPage({ kind }) {
   function options(source) {
     const items = refs[source] ?? []
     const available = source === 'sections' ? items.filter((item) => (!form.programId || item.programId === form.programId) && (!form.yearLevel || String(item.yearLevel) === String(form.yearLevel))) : items
-    return available.map((item) => <option key={item._id} value={item._id}>{source === 'users' ? item.email : source === 'sections' ? item.name : `${item.code} · ${item.name}`}</option>)
+    return available.map((item) => <option key={item._id} value={item._id}>{source === 'users' ? item.email : ['sections', 'departments'].includes(source) ? item.name : `${item.code} · ${item.name}`}</option>)
   }
 
   return <section>
@@ -67,7 +67,7 @@ export default function ProfileManagementPage({ kind }) {
     <form onSubmit={save} className="mt-7 rounded-xl border border-slate-200 bg-white p-6">
       <div className="mb-5 flex items-center justify-between"><h2 className="font-semibold">{editing ? 'Edit profile' : 'Add profile'}</h2>{editing && <button type="button" onClick={() => { setEditing(null); setForm({}) }} className="text-sm text-slate-600 underline">Cancel</button>}</div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([name, label, type]) => <label key={name} className="text-sm font-medium text-slate-700">{label}
-        {['users', 'programs', 'sections', 'departments'].includes(type) ? <select disabled={editing && name === 'userId'} required={!['sectionId'].includes(name)} value={form[name] ?? ''} onChange={(event) => setForm({ ...form, [name]: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="">Select…</option>{options(type)}</select> : <input required={!['middleName', 'birthDate', 'phone'].includes(name)} type={type === 'date' ? 'date' : type === 'email' ? 'email' : type === 'number' ? 'number' : 'text'} min={type === 'number' ? 1 : undefined} value={form[name] ?? ''} onChange={(event) => setForm({ ...form, [name]: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />}
+        {type === 'yearLevel' ? <select required value={form[name] ?? ''} onChange={(event) => setForm({ ...form, yearLevel: event.target.value, sectionId: '' })} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="">Select…</option>{(refs.programs ?? []).find((program) => program._id === form.programId)?.yearLevels.map((year) => <option key={year} value={year}>{year}{year % 10 === 1 && year % 100 !== 11 ? 'st' : year % 10 === 2 && year % 100 !== 12 ? 'nd' : year % 10 === 3 && year % 100 !== 13 ? 'rd' : 'th'} year</option>)}<option value="irregular">Irregular</option></select> : ['users', 'programs', 'sections', 'departments'].includes(type) ? <select disabled={(editing && name === 'userId') || (name === 'sectionId' && form.yearLevel === 'irregular')} required={!['sectionId'].includes(name)} value={form[name] ?? ''} onChange={(event) => setForm({ ...form, [name]: event.target.value, ...(name === 'programId' ? { yearLevel: '', sectionId: '' } : {}) })} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="">Select…</option>{options(type)}</select> : <input required={!['middleName', 'birthDate', 'phone'].includes(name)} type={name === 'phone' ? 'tel' : type === 'date' ? 'date' : type === 'email' ? 'email' : type === 'number' ? 'number' : 'text'} inputMode={name === 'phone' ? 'numeric' : undefined} pattern={name === 'phone' ? '[0-9]*' : undefined} maxLength={name === 'phone' ? 40 : undefined} min={type === 'number' ? 1 : undefined} value={form[name] ?? ''} onChange={(event) => setForm({ ...form, [name]: name === 'phone' ? event.target.value.replace(/\D/g, '') : event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />}
       </label>)}</div>
       <button type="submit" className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white">{editing ? 'Save changes' : 'Create profile'}</button>
     </form>

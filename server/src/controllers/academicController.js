@@ -36,7 +36,7 @@ export function createAcademicController(resource) {
       if (academicTermId && Model.schema.path('academicTermId')) filter.academicTermId = academicTermId
       if (search) {
         const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const fields = ['code', 'name', 'academicYear'].filter((field) => Model.schema.path(field))
+        const fields = (resource === 'departments' ? ['name'] : ['code', 'name', 'academicYear']).filter((field) => Model.schema.path(field))
         if (fields.length) filter.$or = fields.map((field) => ({ [field]: { $regex: pattern, $options: 'i' } }))
       }
       const [items, total] = await Promise.all([

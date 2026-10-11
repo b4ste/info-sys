@@ -61,6 +61,7 @@ export default function AcademicResourcePage({ resource }) {
     setActionError('')
     try {
       const body = serialize(form, config.fields)
+      if (resource === 'departments' && !editing) body.code = crypto.randomUUID().replaceAll('-', '').slice(0, 24).toUpperCase()
       await api(`/${resource}${editing ? `/${editing._id}` : ''}`, { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(body) })
       setMessage(editing ? 'Record updated.' : 'Record created.')
       reset()
@@ -103,7 +104,7 @@ export default function AcademicResourcePage({ resource }) {
         <button type="submit" disabled={busy} className="mt-5 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50">{busy ? 'Saving…' : editing ? 'Save changes' : 'Create'}</button>
       </form>
 
-      <div className="mt-8 flex flex-wrap gap-3"><input aria-label="Search records" placeholder="Search code or name" value={search} onChange={(event) => setSearch(event.target.value)} className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /><button type="button" onClick={() => { list.setPage(1); setQuery(search) }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Search</button></div>
+      <div className="mt-8 flex flex-wrap gap-3"><input aria-label="Search records" placeholder={resource === 'departments' ? 'Search name' : 'Search code or name'} value={search} onChange={(event) => setSearch(event.target.value)} className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /><button type="button" onClick={() => { list.setPage(1); setQuery(search) }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Search</button></div>
       {list.loading ? <div className="mt-5"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-5"><EmptyState /></div> : <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr>{config.fields.slice(0, 4).map((field) => <th key={field.name} className="px-4 py-3">{field.label}</th>)}<th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead><tbody>{list.items.map((item) => <tr key={item._id} className="border-t border-slate-100">{config.fields.slice(0, 4).map((field) => <td key={field.name} className="px-4 py-3">{display(item, field)}</td>)}<td className="px-4 py-3"><StatusBadge status={item.status} /></td><td className="space-x-3 whitespace-nowrap px-4 py-3"><button type="button" onClick={() => startEdit(item)} className="font-medium text-blue-700">Edit</button>{resource === 'academic-terms' ? <>{item.status === 'upcoming' && <button type="button" onClick={() => action(item, 'activate')} className="font-medium text-blue-700">Activate</button>}{item.status === 'active' && <button type="button" onClick={() => action(item, 'complete')} className="font-medium text-blue-700">Complete</button>}</> : item.status === 'active' && <button type="button" onClick={() => action(item, 'archive')} className="font-medium text-rose-700">Archive</button>}</td></tr>)}</tbody></table></div>}
       <Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} />
     </section>

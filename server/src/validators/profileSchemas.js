@@ -13,9 +13,9 @@ export const studentSchema = z.object({
   lastName: name,
   birthDate: z.coerce.date().optional(),
   contactEmail: contact,
-  phone: z.string().trim().max(40).optional(),
+  phone: z.string().trim().max(40).regex(/^\d*$/, 'Phone must contain digits only').optional(),
   programId: objectId,
-  yearLevel: z.number().int().min(1).max(12),
+  yearLevel: z.union([z.number().int().min(1).max(12), z.literal('irregular')]),
   sectionId: objectId.nullable().optional(),
   status: status.optional(),
 }).strict()

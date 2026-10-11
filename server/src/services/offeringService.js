@@ -1,6 +1,5 @@
 import AcademicTerm from '../models/AcademicTerm.js'
 import ClassOffering from '../models/ClassOffering.js'
-import CurriculumRule from '../models/CurriculumRule.js'
 import Faculty from '../models/Faculty.js'
 import Program from '../models/Program.js'
 import Section from '../models/Section.js'
@@ -29,8 +28,6 @@ export async function validateOffering(data, existing = null) {
     const section = await Section.findById(data.sectionId)
     if (!section || section.status !== 'active' || String(section.programId) !== String(data.programId) || section.yearLevel !== data.yearLevel || String(section.academicTermId) !== String(data.academicTermId)) invalid('Section must match the offering program, year level, and term.')
   }
-  const curriculum = await CurriculumRule.find({ programId: data.programId, yearLevel: data.yearLevel, subjectId: data.subjectId, status: 'active' }).populate('effectiveFromTermId', 'startDate')
-  if (!curriculum.some((rule) => !rule.effectiveFromTermId || rule.effectiveFromTermId.startDate <= term.startDate)) invalid('Subject is not assigned to this program and year level for this term.')
   if (data.capacity < (existing?.enrollmentCount ?? 0)) invalid('Capacity cannot be below approved enrollment count.')
   if (data.gradeComponents?.length) {
     const names = data.gradeComponents.map((item) => item.name.toLowerCase())
@@ -58,5 +55,5 @@ export async function studentEligibleOfferings(userId) {
   if (!student) return []
   const active = await AcademicTerm.findOne({ status: 'active' })
   if (!active) return []
-  return ClassOffering.find({ programId: student.programId, yearLevel: student.yearLevel, academicTermId: active.id, status: 'open' })
+  return ClassOffering.find({ programId: student.programId, ...(student.yearLevel === 'irregular' ? {} : { yearLevel: student.yearLevel }), academicTermId: active.id, status: 'open' })
 }

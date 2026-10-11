@@ -3,6 +3,7 @@ import { api } from '../services/api.js'
 
 export function useApiList(path, { initialPage = 1, limit = 20 } = {}) {
   const [page, setPage] = useState(initialPage)
+  const [loadedPage, setLoadedPage] = useState(initialPage)
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -16,10 +17,11 @@ export function useApiList(path, { initialPage = 1, limit = 20 } = {}) {
       const data = await api(`${path}${separator}page=${page}&limit=${limit}`)
       setItems(data.items)
       setTotal(data.total)
+      setLoadedPage(page)
     } catch (requestError) { setError(requestError.message) }
     finally { setLoading(false) }
   }, [path, page, limit])
 
   useEffect(() => { Promise.resolve().then(refresh) }, [refresh])
-  return { items, total, loading, error, page, setPage, refresh, limit }
+  return { items, total, loading, error, page, loadedPage, setPage, refresh, limit }
 }

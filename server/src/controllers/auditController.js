@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import AuditEvent from '../models/AuditEvent.js'
 
-const schema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20), action: z.string().trim().max(100).optional(), entityType: z.string().trim().max(100).optional() })
+const schema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(10).default(10), action: z.string().trim().max(100).optional(), entityType: z.string().trim().max(100).optional() })
 
 export async function listAuditEvents(request, response) {
   const parsed = schema.safeParse(request.query)

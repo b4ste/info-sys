@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 
 const schema = new mongoose.Schema({
-  code: { type: String, required: true, trim: true, uppercase: true, unique: true },
+  code: { type: String, required: true, trim: true, uppercase: true, unique: true, default: () => new mongoose.Types.ObjectId().toString() },
   name: { type: String, required: true, trim: true },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
 }, { timestamps: true })
