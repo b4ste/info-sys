@@ -20,8 +20,8 @@ export function StatusBadge({ status }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${tone}`}>{status}</span>
 }
 
-export function Pager({ page, total, limit, onPageChange, disabled = false }) {
+export function Pager({ page, total, limit, onPageChange, disabled = false, showSinglePage = false }) {
   const pages = Math.max(1, Math.ceil(total / limit))
-  if (pages <= 1) return null
+  if (pages <= 1 && !showSinglePage) return null
   return <div className="mt-5 flex items-center justify-end gap-3 text-sm"><button type="button" disabled={disabled || page <= 1} onClick={() => onPageChange(page - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40">Previous</button><span>Page {page} of {pages}</span><button type="button" disabled={disabled || page >= pages} onClick={() => onPageChange(page + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40">Next</button></div>
 }

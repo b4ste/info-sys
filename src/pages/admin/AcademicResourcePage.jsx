@@ -44,7 +44,7 @@ export default function AcademicResourcePage({ resource }) {
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const listPath = `/${resource}${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ''}`
-  const catalogPage = resource === 'programs' || resource === 'sections'
+  const catalogPage = ['programs', 'sections', 'subjects'].includes(resource)
   const list = useApiList(listPath, { limit: catalogPage ? 6 : 20, enabled: !catalogPage })
   const sources = useMemo(() => [...new Set(config.fields.map((field) => field.source).filter(Boolean))], [config])
   const selectedProgram = (refs.programs ?? []).find((program) => program._id === form.programId)
@@ -55,6 +55,7 @@ export default function AcademicResourcePage({ resource }) {
     if (programsPage && departmentFilter && item.departmentId !== departmentFilter) return false
     if (!searchText) return true
     if (programsPage) return `${item.code} ${item.name}`.toLowerCase().includes(searchText)
+    if (resource === 'subjects') return `${item.code} ${item.name}`.toLowerCase().includes(searchText)
     const program = (refs.programs ?? []).find((entry) => entry._id === item.programId)
     const term = (refs['academic-terms'] ?? []).find((entry) => entry._id === item.academicTermId)
     return [item.name, item.yearLevel, program?.code, program?.name, term?.academicYear, term?.termNumber]
@@ -154,7 +155,7 @@ export default function AcademicResourcePage({ resource }) {
 
       <div className="mt-8 flex flex-wrap items-end gap-3"><input aria-label="Search records" placeholder={resource === 'departments' ? 'Search name' : resource === 'sections' ? 'Search program or section' : 'Search code or name'} value={search} onChange={(event) => { setSearch(event.target.value); list.setPage(1) }} className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />{resource === 'programs' && <div className="ml-auto w-full max-w-xs text-sm font-medium text-slate-700">Department<SelectMenu ariaLabel="Filter programs by department" value={departmentFilter} onChange={(value) => { setDepartmentFilter(value); list.setPage(1) }} options={[{ value: '', label: 'All departments' }, ...(refs.departments ?? []).map((department) => ({ value: department._id, label: department.name }))]} /></div>}</div>
       {(catalogPage ? catalogLoading : list.loading) ? <div className="mt-5"><LoadingState /></div> : visibleItems.length === 0 ? <div className="mt-5"><EmptyState /></div> : <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr>{config.fields.slice(0, 4).map((field) => <th key={field.name} className="px-4 py-3">{field.label}</th>)}<th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead><tbody>{visibleItems.map((item) => <tr key={item._id} className="border-t border-slate-100">{config.fields.slice(0, 4).map((field) => <td key={field.name} className="px-4 py-3">{display(item, field)}</td>)}<td className="px-4 py-3"><StatusBadge status={item.status} /></td><td className="space-x-3 whitespace-nowrap px-4 py-3"><button type="button" onClick={() => startEdit(item)} className="font-medium text-blue-700">Edit</button>{resource === 'academic-terms' ? <>{item.status === 'upcoming' && <button type="button" onClick={() => action(item, 'activate')} className="font-medium text-blue-700">Activate</button>}{item.status === 'active' && <button type="button" onClick={() => action(item, 'complete')} className="font-medium text-blue-700">Complete</button>}</> : item.status === 'active' && <button type="button" onClick={() => action(item, 'archive')} className="font-medium text-rose-700">Archive</button>}</td></tr>)}</tbody></table></div>}
-      <Pager page={list.page} total={visibleTotal} limit={list.limit} onPageChange={list.setPage} disabled={catalogPage ? catalogLoading : list.loading} />
+      <Pager page={list.page} total={visibleTotal} limit={list.limit} onPageChange={list.setPage} disabled={catalogPage ? catalogLoading : list.loading} showSinglePage={resource === 'subjects' && visibleTotal > 0} />
     </section>
   )
 }
