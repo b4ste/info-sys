@@ -29,11 +29,11 @@ function NameFields({ value, onChange }) {
 
 function RoleBadge({ role }) {
   const tone = {
-    student: 'bg-sky-50 text-sky-700',
-    faculty: 'bg-violet-50 text-violet-700',
-    admin: 'bg-amber-50 text-amber-700',
-  }[role]
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${tone}`}>{role}</span>
+    student: 'bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-700/60',
+    faculty: 'bg-violet-50 text-violet-800 border-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-700/60',
+    admin: 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-[#ebb12a]/20 dark:text-[#ebb12a] dark:border-[#ebb12a]/40',
+  }[role] ?? 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-white/10 dark:text-blue-200 dark:border-white/10'
+  return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold capitalize border ${tone}`}>{role}</span>
 }
 
 export default function UsersPage() {

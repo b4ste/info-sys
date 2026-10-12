@@ -4,5 +4,119 @@ import { formatGradePoint } from '../../utils/gradeScale.js'
 
 export default function MyGradesPage() {
   const list = useApiList('/grades/my')
-  return <section><PageHeader eyebrow="Academic records" title="My grades" description="Published midterm grades and official final grades appear here." />{list.error && <p role="alert" className="mt-5 text-sm text-rose-700">{list.error}</p>}{list.loading ? <div className="mt-7"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-7"><EmptyState>No published grades yet.</EmptyState></div> : <div className="mt-7 grid gap-4 lg:grid-cols-2">{list.items.map((grade) => <article key={grade._id} className="rounded-xl border border-slate-200 bg-white p-6"><div className="flex items-start justify-between gap-4"><div><h2 className="font-semibold">{grade.enrollmentId?.classOfferingId?.subjectId?.code} · {grade.enrollmentId?.classOfferingId?.subjectId?.name}</h2><p className="mt-1 text-sm text-slate-500">{grade.publishedAt ? `Published ${new Date(grade.publishedAt).toLocaleDateString()}` : 'Midterm published'}</p></div><StatusBadge status={grade.status === 'published' ? 'published' : 'midterm'} /></div><div className="mt-5 grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4 text-sm"><div><p className="text-slate-500">Midterm</p><p className="text-lg font-semibold">{formatGradePoint(grade.midtermGrade)}{grade.midtermScore != null && <span className="ml-2 text-sm font-normal text-slate-500">{grade.midtermScore}%</span>}</p></div><div><p className="text-slate-500">Finals</p><p className="text-lg font-semibold">{formatGradePoint(grade.finalsGrade)}{grade.finalsScore != null && <span className="ml-2 text-sm font-normal text-slate-500">{grade.finalsScore}%</span>}</p></div><div><p className="text-slate-500">Calculated</p><p className="text-lg font-semibold">{grade.calculatedGrade == null ? '—' : `${grade.calculatedGrade}%`}</p></div><div><p className="text-slate-500">Official final grade</p><p className="text-lg font-semibold">{grade.finalGrade == null ? '—' : formatGradePoint(grade.finalGrade)}</p></div></div><ul className="mt-5 divide-y divide-slate-100">{(grade.components ?? []).map((component) => <li key={component.name} className="flex justify-between gap-3 py-2 text-sm"><span>{component.name} ({component.weight}%)</span><span>{component.earnedScore}/{component.maxScore}</span></li>)}</ul>{grade.revisions.length > 0 && <p className="mt-4 text-xs text-slate-500">{grade.revisions.length} approved correction{grade.revisions.length > 1 ? 's' : ''} on record.</p>}</article>)}</div>}<Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} /></section>
+
+  return (
+    <section className="space-y-6">
+      <PageHeader
+        eyebrow="Academic Performance"
+        title="Official Report of Grades"
+        description="Published midterm grades, official finals, and grade points for enrolled courses at National University."
+      />
+
+      {list.error && (
+        <div role="alert" className="rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 p-3.5 text-xs text-rose-800 dark:text-rose-200">
+          {list.error}
+        </div>
+      )}
+
+      {list.loading ? (
+        <div className="mt-6"><LoadingState /></div>
+      ) : list.items.length === 0 ? (
+        <div className="mt-6"><EmptyState>No published grades found for your student records yet.</EmptyState></div>
+      ) : (
+        <div className="mt-6 grid gap-5 lg:grid-cols-2">
+          {list.items.map((grade) => {
+            const subject = grade.enrollmentId?.classOfferingId?.subjectId
+            return (
+              <article
+                key={grade._id}
+                className="rounded-xl border border-slate-200 dark:border-[#273e7a] bg-white dark:bg-[#16264f] p-5 shadow-xs transition-all hover:border-[#273a72] dark:hover:border-[#ebb12a]"
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-white/5 pb-3.5">
+                  <div>
+                    <span className="inline-block text-xs font-extrabold uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">
+                      {subject?.code}
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                      {subject?.name}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-blue-300">
+                      {grade.publishedAt
+                        ? `Published ${new Date(grade.publishedAt).toLocaleDateString()}`
+                        : 'Midterm recorded'}
+                    </p>
+                  </div>
+                  <StatusBadge status={grade.status === 'published' ? 'published' : 'midterm'} />
+                </div>
+
+                {/* Official Grade Metric Grid */}
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="rounded-lg bg-slate-50 dark:bg-white/5 p-3 border border-slate-100 dark:border-white/5">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-blue-300">Midterm</p>
+                    <p className="mt-1 text-base font-extrabold text-slate-900 dark:text-white">
+                      {formatGradePoint(grade.midtermGrade)}
+                    </p>
+                    {grade.midtermScore != null && (
+                      <p className="text-[11px] text-slate-500 dark:text-blue-300">{grade.midtermScore}%</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 dark:bg-white/5 p-3 border border-slate-100 dark:border-white/5">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-blue-300">Finals</p>
+                    <p className="mt-1 text-base font-extrabold text-slate-900 dark:text-white">
+                      {formatGradePoint(grade.finalsGrade)}
+                    </p>
+                    {grade.finalsScore != null && (
+                      <p className="text-[11px] text-slate-500 dark:text-blue-300">{grade.finalsScore}%</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 dark:bg-white/5 p-3 border border-slate-100 dark:border-white/5">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-blue-300">Average</p>
+                    <p className="mt-1 text-base font-extrabold text-slate-900 dark:text-white">
+                      {grade.calculatedGrade == null ? '—' : `${grade.calculatedGrade}%`}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-blue-300">Calculated</p>
+                  </div>
+
+                  <div className="rounded-lg bg-blue-50 dark:bg-[#192d5c] p-3 border border-blue-200/60 dark:border-[#273e7a]">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">Final Grade</p>
+                    <p className="mt-1 text-base font-extrabold text-[#273a72] dark:text-[#ebb12a]">
+                      {grade.finalGrade == null ? '—' : formatGradePoint(grade.finalGrade)}
+                    </p>
+                    <p className="text-[11px] font-semibold text-[#273a72]/80 dark:text-[#ebb12a]/80">Official</p>
+                  </div>
+                </div>
+
+                {/* Score Breakdown if present */}
+                {grade.components?.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-blue-300 mb-2">
+                      Assessment Breakdown
+                    </p>
+                    <div className="space-y-1.5 text-xs text-slate-600 dark:text-blue-100">
+                      {grade.components.map((c) => (
+                        <div key={c.name} className="flex justify-between items-center py-1 border-b border-slate-50 dark:border-white/5 last:border-0">
+                          <span>{c.name} ({c.weight}%)</span>
+                          <span className="font-semibold">{c.earnedScore} / {c.maxScore}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {grade.revisions?.length > 0 && (
+                  <p className="mt-3 text-[11px] font-medium text-[#273a72] dark:text-[#ebb12a]">
+                    ℹ️ {grade.revisions.length} approved correction{grade.revisions.length > 1 ? 's' : ''} on official record.
+                  </p>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      )}
+
+      <Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} />
+    </section>
+  )
 }

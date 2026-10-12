@@ -18,10 +18,146 @@ export default function EnrollmentApprovalsPage() {
     setMessage('')
     try {
       await api(`/enrollments/${item._id}/${operation}`, { method: 'PATCH', ...(body && { body }) })
-      setMessage(`Request ${operation === 'approve' ? 'approved' : 'rejected'}.`)
+      setMessage(`Enrollment request ${operation === 'approve' ? 'approved' : 'rejected'} successfully.`)
       await list.refresh()
-    } catch (requestError) { setError(requestError.message) }
+    } catch (requestError) {
+      setError(requestError.message)
+    }
   }
 
-  return <section><PageHeader eyebrow="Enrollment" title="Enrollment approvals" description="Review eligibility and capacity before approving student requests. The API rechecks both when you decide." /><Notice error={error || list.error} message={message} /><label className="mt-7 block max-w-xs text-sm font-medium">Status<select value={status} onChange={(event) => { setStatus(event.target.value); list.setPage(1) }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"><option value="">All</option>{['pending', 'approved', 'rejected', 'withdrawn'].map((item) => <option key={item}>{item}</option>)}</select></label>{list.loading ? <div className="mt-5"><LoadingState /></div> : list.items.length === 0 ? <div className="mt-5"><EmptyState>No enrollment requests found.</EmptyState></div> : <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead><tbody>{list.items.map((item) => <tr key={item._id} className="border-t border-slate-100"><td className="px-4 py-3">{item.studentId?.studentNumber} · {item.studentId?.firstName} {item.studentId?.lastName}</td><td className="px-4 py-3">{item.classOfferingId?.subjectId?.code} · {item.classOfferingId?.subjectId?.name}</td><td className="px-4 py-3">{new Date(item.requestedAt).toLocaleDateString()}</td><td className="px-4 py-3"><StatusBadge status={item.status} /></td><td className="space-x-3 whitespace-nowrap px-4 py-3">{item.status === 'pending' && <><button type="button" onClick={() => decide(item, 'approve')} className="font-medium text-blue-700">Approve</button><button type="button" onClick={() => { setRejectTarget(item); setRejectionReason('') }} className="font-medium text-rose-700">Reject</button></>}</td></tr>)}</tbody></table></div>}<Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} />{rejectTarget && <ActionDialog title="Reject enrollment request?" description={`Give a reason for rejecting ${rejectTarget.studentId?.firstName ?? 'this student'}'s request.`} fieldLabel="Reason for rejection" value={rejectionReason} onChange={setRejectionReason} confirmLabel="Reject request" onCancel={() => setRejectTarget(null)} onConfirm={() => { const target = rejectTarget; const reason = rejectionReason; setRejectTarget(null); decide(target, 'reject', reason) }} />}</section>
+  return (
+    <section className="space-y-6">
+      <PageHeader
+        eyebrow="Registrar Administration"
+        title="Enrollment Approvals"
+        description="Verify prerequisite eligibility and seat capacity before approving course petitions. The system revalidates constraints upon submission."
+      />
+
+      <Notice error={error || list.error} message={message} />
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <label className="block max-w-xs text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-blue-200">
+          Filter by Status
+          <select
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value)
+              list.setPage(1)
+            }}
+            className="mt-1.5 block w-full rounded-lg border border-slate-300 dark:border-[#273e7a] bg-white dark:bg-[#132247] px-3.5 py-2 text-xs text-slate-800 dark:text-white"
+          >
+            <option value="">All Statuses</option>
+            {['pending', 'approved', 'rejected', 'withdrawn'].map((item) => (
+              <option key={item} value={item}>
+                {item.charAt(0).toUpperCase() + item.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {list.loading ? (
+        <div className="mt-6"><LoadingState /></div>
+      ) : list.items.length === 0 ? (
+        <div className="mt-6"><EmptyState>No student enrollment requests found matching the selected filter.</EmptyState></div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#273e7a] bg-white dark:bg-[#16264f] shadow-xs">
+          <table className="w-full min-w-[750px] text-left text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-5 py-3 font-bold text-xs uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">
+                  Student
+                </th>
+                <th className="px-5 py-3 font-bold text-xs uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">
+                  Subject & Section
+                </th>
+                <th className="px-5 py-3 font-bold text-xs uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">
+                  Requested Date
+                </th>
+                <th className="px-5 py-3 font-bold text-xs uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">
+                  Status
+                </th>
+                <th className="px-5 py-3 font-bold text-xs uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.items.map((item) => (
+                <tr key={item._id} className="border-t border-slate-100 dark:border-white/5">
+                  <td className="px-5 py-3.5">
+                    <span className="font-bold text-slate-900 dark:text-white block">
+                      {item.studentId?.firstName} {item.studentId?.lastName}
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-blue-300">
+                      {item.studentId?.studentNumber}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-xs text-slate-700 dark:text-blue-100">
+                    <strong className="block text-[#273a72] dark:text-[#ebb12a]">
+                      {item.classOfferingId?.subjectId?.code}
+                    </strong>
+                    <span>{item.classOfferingId?.subjectId?.name}</span>
+                  </td>
+                  <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-blue-300">
+                    {new Date(item.requestedAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <StatusBadge status={item.status} />
+                  </td>
+                  <td className="px-5 py-3.5 whitespace-nowrap">
+                    {item.status === 'pending' ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => decide(item, 'approve')}
+                          className="rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-xs font-bold transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectTarget(item)
+                            setRejectionReason('')
+                          }}
+                          className="rounded-md bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 text-xs font-bold transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 dark:text-blue-300/60">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Pager page={list.page} total={list.total} limit={list.limit} onPageChange={list.setPage} />
+
+      {rejectTarget && (
+        <ActionDialog
+          title="Reject Enrollment Request?"
+          description={`Provide an institutional reason for rejecting ${
+            rejectTarget.studentId?.firstName ?? 'this student'
+          }'s course petition.`}
+          fieldLabel="Reason for rejection"
+          value={rejectionReason}
+          onChange={setRejectionReason}
+          confirmLabel="Confirm Rejection"
+          onCancel={() => setRejectTarget(null)}
+          onConfirm={() => {
+            const target = rejectTarget
+            const reason = rejectionReason
+            setRejectTarget(null)
+            decide(target, 'reject', reason)
+          }}
+        />
+      )}
+    </section>
+  )
 }

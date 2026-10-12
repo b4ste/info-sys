@@ -1,13 +1,19 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --color-blue-50: #edf3f7;
-  --color-blue-100: #dbe8f0;
-  --color-blue-300: #a4bed0;
-  --color-blue-400: #709bb8;
-  --color-blue-600: #285b80;
-  --color-blue-700: #1b4264;
-  --color-blue-800: #143650;
+  --color-blue-50: #eef2fb;
+  --color-blue-100: #dce5f7;
+  --color-blue-200: #b9ccf0;
+  --color-blue-300: #94b2e8;
+  --color-blue-400: #5884d4;
+  --color-blue-500: #3460b8;
+  --color-blue-600: #273a72;
+  --color-blue-700: #203162;
+  --color-blue-800: #17244a;
+  --color-gold-400: #f5b731;
+  --color-gold-500: #ebb12a;
 }
 
 :root {
@@ -26,17 +32,17 @@ body {
 
 html.dark {
   color-scheme: dark;
-  background: #0b1b29;
-  --color-white: #203a51;
-  --color-slate-50: #152c40;
-  --color-slate-100: #243b50;
-  --color-slate-200: #30485c;
-  --color-slate-300: #405c72;
-  --color-slate-500: #a9bdd0;
-  --color-slate-600: #c3d1df;
-  --color-slate-700: #d8e5ef;
-  --color-slate-800: #e6eef5;
-  --color-slate-900: #f1f6fa;
+  background: #111e3e;
+  --color-white: #16264f;
+  --color-slate-50: #132247;
+  --color-slate-100: #1b2d5c;
+  --color-slate-200: #273e7a;
+  --color-slate-300: #355099;
+  --color-slate-500: #9ab4e8;
+  --color-slate-600: #c0d1f7;
+  --color-slate-700: #dbe5fc;
+  --color-slate-800: #edf2fe;
+  --color-slate-900: #ffffff;
   --color-emerald-50: #143b34;
   --color-emerald-700: #9cdec3;
   --color-amber-50: #463923;
@@ -48,43 +54,106 @@ html.dark {
   --color-sky-700: #a6d8f5;
   --color-violet-50: #332b50;
   --color-violet-700: #d8c4ff;
-  --color-blue-600: #346d93;
+  --color-blue-600: #3553a8;
 }
 
 html.dark body {
   color: #e6eef5;
 }
 
-html.dark .text-white {
-  color: #fff;
+html.dark .text-white,
+html.dark [class*="text-white"],
+html.dark [class*="dark:text-white"] {
+  color: #ffffff !important;
 }
 
 html.dark .text-blue-700 {
-  color: #9cc9e6;
+  color: #ebb12a !important;
 }
 
 html.dark .bg-blue-50 {
-  background-color: #243f54;
+  background-color: #192d5c !important;
 }
 
-html.dark .sidebar-active {
-  background-color: #3b6686;
-  color: #fff;
+/* Primary Button Styling (National University Theme) */
+button.bg-blue-700,
+a.bg-blue-700 {
+  background-color: #273a72 !important;
+  color: #ffffff !important;
+  transition: all 0.15s ease-in-out;
 }
 
-html.dark .brand-on-light {
-  background-color: #edf3f7;
-  color: #1b4264;
+button.bg-blue-700:hover,
+a.bg-blue-700:hover {
+  background-color: #1c2e5d !important;
+}
+
+html.dark button.bg-blue-700,
+html.dark a.bg-blue-700 {
+  background-color: #ebb12a !important;
+  color: #111e3e !important;
+  font-weight: 700 !important;
+}
+
+html.dark button.bg-blue-700:hover,
+html.dark a.bg-blue-700:hover {
+  background-color: #f5b731 !important;
+}
+
+/* Inputs & Form Controls */
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  border-color: #cbd5e1;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #273a72 !important;
+  border-color: #273a72 !important;
 }
 
 html.dark input:not([type='checkbox']):not([type='radio']),
 html.dark select,
 html.dark textarea {
-  background-color: #10273a;
-  color: #f1f6fa;
+  background-color: #132247 !important;
+  color: #ffffff !important;
+  border-color: #273e7a !important;
+}
+
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  outline: 2px solid #ebb12a !important;
+  border-color: #ebb12a !important;
 }
 
 html.dark input::placeholder,
 html.dark textarea::placeholder {
-  color: #9eb2c5;
+  color: #8fa8e2 !important;
+}
+
+/* Table styling for NUIS MOA theme */
+thead.bg-slate-50,
+.bg-slate-50[role="row"] {
+  background-color: #eef2fb !important;
+  color: #273a72 !important;
+}
+
+html.dark thead.bg-slate-50,
+html.dark .bg-slate-50[role="row"] {
+  background-color: #15244f !important;
+  color: #ebb12a !important;
+}
+
+html.dark tr.border-t,
+html.dark div[role="row"].border-t {
+  border-color: #23376e !important;
+}
+
+html.dark tr:hover,
+html.dark div[role="row"]:hover {
+  background-color: #1a2d5e !important;
 }

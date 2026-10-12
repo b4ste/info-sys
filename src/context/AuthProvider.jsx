@@ -8,11 +8,22 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      setLoading(false)
+    }, 3500)
+
     api('/auth/me', { signal: controller.signal })
       .then(({ user: currentUser }) => { if (!controller.signal.aborted) setUser(currentUser) })
       .catch(() => { if (!controller.signal.aborted) setUser(null) })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
-    return () => controller.abort()
+      .finally(() => {
+        clearTimeout(timeoutId)
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [])
 
   async function login(email, password) {

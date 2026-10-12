@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ className = '' }) {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
 
   function toggle() {
@@ -11,8 +11,13 @@ export default function ThemeToggle() {
   }
 
   return (
-    <button type="button" onClick={toggle} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">
-      {dark ? '☀ Light mode' : '☾ Dark mode'}
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className={className || "rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"}
+    >
+      {dark ? '☀ Light' : '☾ Dark'}
     </button>
   )
 }
