@@ -48,7 +48,7 @@ export default function AcademicResourcePage({ resource }) {
   const listPath = `/${resource}${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ''}`
   const catalogPage = ['programs', 'sections', 'subjects'].includes(resource)
   const list = useApiList(listPath, { limit: catalogPage ? 6 : 20, enabled: !catalogPage })
-  const sources = useMemo(() => [...new Set([...config.fields.map((field) => field.source).filter(Boolean), ...(resource === 'departments' ? ['departments'] : [])])], [config, resource])
+  const sources = useMemo(() => [...new Set([...config.fields.map((field) => field.source).filter(Boolean), ...(resource === 'departments' ? ['departments'] : []), ...(resource === 'programs' ? ['programs'] : []), ...(resource === 'subjects' ? ['subjects'] : [])])], [config, resource])
   const selectedProgram = (refs.programs ?? []).find((program) => program._id === form.programId)
   const programsPage = resource === 'programs'
   const catalogLoading = catalogPage && (localCatalog.resource !== resource || localCatalog.revision !== catalogRevision)
@@ -102,10 +102,14 @@ export default function AcademicResourcePage({ resource }) {
     setMessage('')
     setActionError('')
     try {
-      if (resource === 'departments') {
-        const name = form.name?.trim().toLocaleLowerCase('en')
-        const duplicate = (refs.departments ?? []).some((department) => department._id !== editing?._id && department.name.trim().toLocaleLowerCase('en') === name)
-        if (duplicate) throw new Error('A department with this name already exists.')
+      if (['departments', 'programs', 'subjects'].includes(resource)) {
+        const uniqueFields = resource === 'departments' ? ['name'] : ['code', 'name']
+        const existingItems = refs[resource] ?? []
+        for (const field of uniqueFields) {
+          const value = form[field]?.trim().toLocaleLowerCase('en')
+          const duplicate = existingItems.some((item) => item._id !== editing?._id && item[field].trim().toLocaleLowerCase('en') === value)
+          if (duplicate) throw new Error(`A ${{ departments: 'department', programs: 'program', subjects: 'subject' }[resource]} with this ${field} already exists.`)
+        }
       }
       const body = serialize(form, config.fields)
       if (resource === 'departments' && !editing) body.code = crypto.randomUUID().replaceAll('-', '').slice(0, 24).toUpperCase()
