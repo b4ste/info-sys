@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ActionDialog from '../../components/ActionDialog.jsx'
+import Icon from '../../components/Icon.jsx'
 import { EmptyState, LoadingState, Notice, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
 import { useApiList } from '../../hooks/useApiList.js'
 import { api } from '../../services/api.js'
@@ -73,14 +74,15 @@ export default function MyEnrollmentsPage({ view = 'requests' }) {
                   </h2>
 
                   {item.rejectionReason && (
-                    <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400 font-medium">
-                      ⚠️ Reason for rejection: {item.rejectionReason}
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-medium">
+                      <Icon name="alert" className="size-3.5 shrink-0" />
+                      Reason for rejection: {item.rejectionReason}
                     </p>
                   )}
 
                   {isClassesView && (
                     <div className="mt-2 flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-blue-100">
-                      <span className="text-slate-400 dark:text-blue-300">🗓️ Schedule:</span>
+                      <span className="inline-flex items-center gap-1.5 text-slate-400 dark:text-blue-300"><Icon name="calendar" className="size-3.5" />Schedule:</span>
                       <span>
                         {offering?.schedule?.length
                           ? offering.schedule
