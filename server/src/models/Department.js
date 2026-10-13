@@ -6,4 +6,6 @@ const schema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
 }, { timestamps: true })
 
+schema.index({ name: 1 }, { unique: true, collation: { locale: 'en', strength: 2 }, name: 'department_name_unique_ci' })
+
 export default mongoose.model('Department', schema)
