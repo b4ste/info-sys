@@ -1,5 +1,6 @@
 import AcademicTerm from '../models/AcademicTerm.js'
 import ClassOffering from '../models/ClassOffering.js'
+import Subject from '../models/Subject.js'
 import Student from '../models/Student.js'
 import { enrollmentWindow } from './enrollmentWindow.js'
 
@@ -12,6 +13,8 @@ function conflict(message) {
 export async function enrollmentEligibility(student, offering, { allowUpcoming = false } = {}) {
   if (!student || student.status !== 'active') conflict('An active student profile is required.')
   if (!offering || offering.status !== 'open') conflict('This class is not open for enrollment.')
+  const subject = await Subject.findById(offering.subjectId).select('status')
+  if (!subject || subject.status !== 'active') conflict('This class subject is inactive.')
   const term = await AcademicTerm.findById(offering.academicTermId)
   if (!term || (allowUpcoming ? term.status === 'completed' : term.status !== 'active')) conflict('The offering term is not available for enrollment.')
   if (!allowUpcoming) {

@@ -104,3 +104,22 @@ test('full and closed offerings reject requests, and program or year mismatch is
   assert.equal(closed.status, 409)
   assert.match(closed.data.error.message, /not open/i)
 })
+
+test('deactivating a subject closes its offerings and prevents reopening or enrollment', async () => {
+  await ClassOffering.updateOne({ _id: offering.id }, { $set: { status: 'open' } })
+  const deactivated = await call(`/api/subjects/${offering.subjectId}`, { cookie: adminCookie, method: 'DELETE' })
+  assert.equal(deactivated.status, 200)
+  assert.equal((await ClassOffering.findById(offering.id)).status, 'closed')
+
+  const reopened = await call(`/api/class-offerings/${offering.id}/status`, { cookie: adminCookie, method: 'PATCH', body: { status: 'open' } })
+  assert.equal(reopened.status, 409)
+  assert.equal(reopened.data.error.code, 'SUBJECT_INACTIVE')
+
+  await ClassOffering.updateOne({ _id: offering.id }, { $set: { status: 'open' } })
+  const enrollment = await call('/api/enrollments', { cookie: studentCookies[0], method: 'POST', body: { classOfferingId: offering.id } })
+  assert.equal(enrollment.status, 409)
+  assert.match(enrollment.data.error.message, /subject is inactive/i)
+
+  const visibleOfferings = await call('/api/class-offerings', { cookie: studentCookies[0] })
+  assert.equal(visibleOfferings.data.data.items.some((item) => item._id === offering.id), false)
+})
