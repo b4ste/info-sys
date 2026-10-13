@@ -18,6 +18,15 @@ export default function SelectMenu({
   const selectedIndex = options.findIndex((option) => String(option.value) === String(value))
   const selected = options[selectedIndex]
 
+  function findEnabledIndex(start, direction) {
+    if (!options.length) return -1
+    for (let offset = 0; offset < options.length; offset += 1) {
+      const index = (start + direction * offset + options.length * 2) % options.length
+      if (!options[index].disabled) return index
+    }
+    return -1
+  }
+
   useEffect(() => {
     if (!open) return undefined
     function closeOutside(event) {
@@ -29,11 +38,12 @@ export default function SelectMenu({
 
   function showMenu() {
     if (disabled) return
-    setActiveIndex(Math.max(selectedIndex, 0))
+    setActiveIndex(findEnabledIndex(Math.max(selectedIndex, 0), 1))
     setOpen(true)
   }
 
   function choose(option) {
+    if (option.disabled) return
     onChange(String(option.value))
     setOpen(false)
     buttonRef.current?.focus()
@@ -54,9 +64,9 @@ export default function SelectMenu({
         showMenu()
         return
       }
-      if (event.key === 'Home') setActiveIndex(0)
-      else if (event.key === 'End') setActiveIndex(options.length - 1)
-      else setActiveIndex((index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length)
+      if (event.key === 'Home') setActiveIndex(findEnabledIndex(0, 1))
+      else if (event.key === 'End') setActiveIndex(findEnabledIndex(options.length - 1, -1))
+      else setActiveIndex((index) => findEnabledIndex((index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length, event.key === 'ArrowDown' ? 1 : -1))
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       if (!open) showMenu()
@@ -118,7 +128,7 @@ export default function SelectMenu({
         >
           <option value="">{placeholder}</option>
           {options.map((option) => (
-            <option key={option.value} value={option.value}>
+            <option key={option.value} value={option.value} disabled={option.disabled}>
               {option.label}
             </option>
           ))}
@@ -142,13 +152,15 @@ export default function SelectMenu({
                 type="button"
                 role="option"
                 aria-selected={String(option.value) === String(value)}
+                aria-disabled={Boolean(option.disabled)}
+                disabled={option.disabled}
                 tabIndex={-1}
-                onMouseEnter={() => setActiveIndex(index)}
+                onMouseEnter={() => { if (!option.disabled) setActiveIndex(index) }}
                 onClick={() => choose(option)}
-                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors cursor-pointer ${
-                  index === activeIndex
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors ${option.disabled ? 'cursor-not-allowed opacity-60 text-slate-400 dark:text-slate-500' : 'cursor-pointer'} ${
+                  !option.disabled && index === activeIndex
                     ? 'bg-blue-50 dark:bg-[#192d5c] text-[#273a72] dark:text-[#ebb12a] font-bold'
-                    : 'text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5'
+                    : !option.disabled && 'text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5'
                 }`}
               >
                 <span className="truncate">{option.label}</span>
