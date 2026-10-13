@@ -240,12 +240,18 @@ test('academic resources require admin writes and validate program relationships
   const duplicateDepartment = await request('/api/departments', { cookie: adminCookie, method: 'POST', body: { code: 'SCI2', name: ' science ' } })
   assert.equal(duplicateDepartment.response.status, 409)
   assert.equal(duplicateDepartment.data.error.code, 'DUPLICATE_DEPARTMENT_NAME')
+  const duplicateDepartmentCode = await request('/api/departments', { cookie: adminCookie, method: 'POST', body: { code: 'sci', name: 'Physical Sciences' } })
+  assert.equal(duplicateDepartmentCode.response.status, 409)
+  assert.equal(duplicateDepartmentCode.data.error.code, 'DUPLICATE_DEPARTMENT_CODE')
 
   const otherDepartment = await request('/api/departments', { cookie: adminCookie, method: 'POST', body: { code: 'ART', name: 'Arts' } })
   assert.equal(otherDepartment.response.status, 201)
   const duplicateRename = await request(`/api/departments/${otherDepartment.data.data.item._id}`, { cookie: adminCookie, method: 'PATCH', body: { name: 'SCIENCE' } })
   assert.equal(duplicateRename.response.status, 409)
   assert.equal(duplicateRename.data.error.code, 'DUPLICATE_DEPARTMENT_NAME')
+  const duplicateCodeUpdate = await request(`/api/departments/${otherDepartment.data.data.item._id}`, { cookie: adminCookie, method: 'PATCH', body: { code: 'sci' } })
+  assert.equal(duplicateCodeUpdate.response.status, 409)
+  assert.equal(duplicateCodeUpdate.data.error.code, 'DUPLICATE_DEPARTMENT_CODE')
 
   const invalidProgram = await request('/api/programs', { cookie: adminCookie, method: 'POST', body: { departmentId: '000000000000000000000000', code: 'BSCS', name: 'Computer Science', yearLevels: [1, 2, 3, 4] } })
   assert.equal(invalidProgram.response.status, 400)
