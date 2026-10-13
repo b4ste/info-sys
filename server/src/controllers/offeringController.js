@@ -5,6 +5,7 @@ import Enrollment from '../models/Enrollment.js'
 import Faculty from '../models/Faculty.js'
 import Student from '../models/Student.js'
 import AcademicTerm from '../models/AcademicTerm.js'
+import Subject from '../models/Subject.js'
 import { audit } from '../services/academicService.js'
 import { facultyOwnsOffering, validateOffering } from '../services/offeringService.js'
 import { enrollmentWindow } from '../services/enrollmentWindow.js'
@@ -43,6 +44,7 @@ export async function listOfferings(request, response) {
     if (student.yearLevel !== 'irregular') filter.yearLevel = student.yearLevel
     filter.academicTermId = activeTerm.id
     filter.status = 'open'
+    filter.subjectId = { $in: await Subject.find({ status: 'active' }).distinct('_id') }
     filter.$or = student.sectionId
       ? [{ sectionId: { $exists: false } }, { sectionId: null }, { sectionId: student.sectionId }]
       : [{ sectionId: { $exists: false } }, { sectionId: null }]
@@ -106,6 +108,10 @@ export async function changeOfferingStatus(request, response) {
   const item = await ClassOffering.findById(request.params.id)
   if (!item) return missing(response)
   if (item.status === 'completed' && parsed.data.status !== 'completed') return response.status(409).json({ success: false, error: { code: 'OFFERING_LOCKED', message: 'Completed offerings cannot be reopened.' } })
+  if (parsed.data.status === 'open') {
+    const subject = await Subject.findById(item.subjectId).select('status')
+    if (!subject || subject.status !== 'active') return response.status(409).json({ success: false, error: { code: 'SUBJECT_INACTIVE', message: 'An offering cannot be opened while its subject is inactive.' } })
+  }
   item.status = parsed.data.status
   await item.save()
   await audit(request.user.id, 'offering.status', 'ClassOffering', item.id, { status: item.status })

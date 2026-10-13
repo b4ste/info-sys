@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { z } from 'zod'
 import AcademicTerm from '../models/AcademicTerm.js'
+import ClassOffering from '../models/ClassOffering.js'
 import { academicModels, activateTerm, audit, completeTerm, validateAcademicRelationship } from '../services/academicService.js'
 import { academicSchemas } from '../validators/academicSchemas.js'
 
@@ -105,6 +106,7 @@ export function createAcademicController(resource) {
       if (term) return response.status(409).json({ success: false, error: { code: 'TERM_ARCHIVE_REQUIRED', message: 'Complete terms instead of deleting them.' } })
       item.status = 'inactive'
       await item.save()
+      if (resource === 'subjects') await ClassOffering.updateMany({ subjectId: item._id, status: 'open' }, { $set: { status: 'closed' } })
       await audit(request.user.id, `${resource}.archived`, Model.modelName, item.id)
       return response.json({ success: true, data: { item } })
     },
