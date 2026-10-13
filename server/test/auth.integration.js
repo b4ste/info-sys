@@ -258,6 +258,21 @@ test('academic resources require admin writes and validate program relationships
 
   const program = await request('/api/programs', { cookie: adminCookie, method: 'POST', body: { departmentId: department.data.data.item._id, code: 'BSCS', name: 'Computer Science', yearLevels: [1, 2, 3, 4] } })
   assert.equal(program.response.status, 201)
+  const duplicateProgramName = await request('/api/programs', { cookie: adminCookie, method: 'POST', body: { departmentId: department.data.data.item._id, code: 'BSIT', name: ' computer science ', yearLevels: [1, 2, 3, 4] } })
+  assert.equal(duplicateProgramName.response.status, 409)
+  assert.equal(duplicateProgramName.data.error.code, 'DUPLICATE_PROGRAM_NAME')
+  const duplicateProgramCode = await request('/api/programs', { cookie: adminCookie, method: 'POST', body: { departmentId: department.data.data.item._id, code: 'bscs', name: 'Information Technology', yearLevels: [1, 2, 3, 4] } })
+  assert.equal(duplicateProgramCode.response.status, 409)
+  assert.equal(duplicateProgramCode.data.error.code, 'DUPLICATE_PROGRAM_CODE')
+
+  const subject = await request('/api/subjects', { cookie: adminCookie, method: 'POST', body: { departmentId: department.data.data.item._id, code: 'SUB1', name: 'Foundations', units: 3 } })
+  assert.equal(subject.response.status, 201)
+  const duplicateSubjectName = await request('/api/subjects', { cookie: adminCookie, method: 'POST', body: { departmentId: department.data.data.item._id, code: 'SUB2', name: ' foundations ', units: 3 } })
+  assert.equal(duplicateSubjectName.response.status, 409)
+  assert.equal(duplicateSubjectName.data.error.code, 'DUPLICATE_SUBJECT_NAME')
+  const duplicateSubjectCode = await request('/api/subjects', { cookie: adminCookie, method: 'POST', body: { departmentId: department.data.data.item._id, code: 'sub1', name: 'Principles', units: 3 } })
+  assert.equal(duplicateSubjectCode.response.status, 409)
+  assert.equal(duplicateSubjectCode.data.error.code, 'DUPLICATE_SUBJECT_CODE')
 
   const wrongYear = await request('/api/sections', { cookie: adminCookie, method: 'POST', body: { programId: program.data.data.item._id, yearLevel: 5, academicTermId: '000000000000000000000000', name: 'A' } })
   assert.equal(wrongYear.response.status, 400)
