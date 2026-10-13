@@ -21,13 +21,18 @@ function missing(response) {
   return response.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Record not found.' } })
 }
 
-async function duplicateDepartmentName(Model, name, exceptId) {
-  const query = { name, ...(exceptId ? { _id: { $ne: exceptId } } : {}) }
+async function duplicateDepartmentValue(Model, field, value, exceptId) {
+  const normalizedValue = field === 'code' ? value.trim().toUpperCase() : value.trim()
+  const query = { [field]: normalizedValue, ...(exceptId ? { _id: { $ne: exceptId } } : {}) }
   return Model.findOne(query).collation({ locale: 'en', strength: 2 }).select('_id')
 }
 
-function departmentNameConflict(response) {
-  return response.status(409).json({ success: false, error: { code: 'DUPLICATE_DEPARTMENT_NAME', message: 'A department with this name already exists.' } })
+function departmentConflict(response, field) {
+  const isCode = field === 'code'
+  return response.status(409).json({ success: false, error: {
+    code: isCode ? 'DUPLICATE_DEPARTMENT_CODE' : 'DUPLICATE_DEPARTMENT_NAME',
+    message: isCode ? 'A department with this code already exists.' : 'A department with this name already exists.',
+  } })
 }
 
 export function createAcademicController(resource) {
@@ -63,7 +68,10 @@ export function createAcademicController(resource) {
     async create(request, response) {
       const parsed = schema.safeParse(request.body)
       if (!parsed.success) return badInput(response, parsed)
-      if (resource === 'departments' && await duplicateDepartmentName(Model, parsed.data.name)) return departmentNameConflict(response)
+      if (resource === 'departments') {
+        if (parsed.data.code && await duplicateDepartmentValue(Model, 'code', parsed.data.code)) return departmentConflict(response, 'code')
+        if (await duplicateDepartmentValue(Model, 'name', parsed.data.name)) return departmentConflict(response, 'name')
+      }
       await validateAcademicRelationship(resource, parsed.data)
       const item = await Model.create(parsed.data)
       await audit(request.user.id, `${resource}.created`, Model.modelName, item.id)
@@ -77,7 +85,10 @@ export function createAcademicController(resource) {
       if (!item) return missing(response)
       if (term && item.status !== 'upcoming') return response.status(409).json({ success: false, error: { code: 'TERM_LOCKED', message: 'Only upcoming terms can be edited.' } })
       const data = { ...item.toObject(), ...parsed.data }
-      if (resource === 'departments' && await duplicateDepartmentName(Model, data.name, item._id)) return departmentNameConflict(response)
+      if (resource === 'departments') {
+        if (await duplicateDepartmentValue(Model, 'code', data.code, item._id)) return departmentConflict(response, 'code')
+        if (await duplicateDepartmentValue(Model, 'name', data.name, item._id)) return departmentConflict(response, 'name')
+      }
       await validateAcademicRelationship(resource, data)
       Object.assign(item, parsed.data)
       await item.save()
