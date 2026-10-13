@@ -23,6 +23,13 @@ function validateStudentProfile(form, selectedAccount, maxBirthDate) {
   return errors
 }
 
+function toInternationalPhone(value) {
+  if (!value) return ''
+  const digits = value.replace(/\D/g, '')
+  const nationalNumber = digits.startsWith('63') ? digits.slice(2) : digits.startsWith('0') ? digits.slice(1) : digits
+  return nationalNumber ? `+63${nationalNumber}` : ''
+}
+
 export default function ProfileManagementPage({ kind }) {
   const resource = kind === 'student' ? 'students' : 'faculty'
   const fields = kind === 'student' ? studentFields : facultyFields
@@ -52,7 +59,7 @@ export default function ProfileManagementPage({ kind }) {
 
   function edit(item) {
     setEditing(item)
-    setForm(Object.fromEntries(fields.map(([name, , type]) => [name, type === 'date' && item[name] ? item[name].slice(0, 10) : item[name] ?? ''])))
+    setForm(Object.fromEntries(fields.map(([name, , type]) => [name, type === 'date' && item[name] ? item[name].slice(0, 10) : type === 'phone' ? toInternationalPhone(item[name]) : item[name] ?? ''])))
     setError('')
     setShowValidation(false)
     setValidationModalOpen(false)
@@ -108,7 +115,9 @@ export default function ProfileManagementPage({ kind }) {
       const digits = value.replace(/\D/g, '').slice(0, 10)
       value = digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits
     } else if (name === 'phone') {
-      value = value.replace(/[^\d+]/g, '')
+      const digits = value.replace(/\D/g, '')
+      const nationalNumber = digits.startsWith('63') ? digits.slice(2) : digits.startsWith('0') ? digits.slice(1) : digits
+      value = nationalNumber ? `+63${nationalNumber.slice(0, 10)}` : ''
     }
     setForm((current) => ({ ...current, [name]: value }))
   }
@@ -127,7 +136,10 @@ export default function ProfileManagementPage({ kind }) {
     <form onSubmit={save} noValidate={kind === 'student'} className="rounded-xl border border-slate-200 dark:border-[#273e7a] bg-white dark:bg-[#16264f] p-6 shadow-xs">
         <div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-base font-bold uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a]">{editing ? 'Edit Profile Record' : 'Create Profile Record'}</h2>{editing && <button type="button" onClick={() => { setEditing(null); setForm({}); setShowValidation(false) }} className="text-xs text-slate-500 underline hover:text-slate-800 dark:text-blue-300 dark:hover:text-white">Cancel</button>}</div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([name, label, type]) => <div key={name} className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-blue-100"><span>{label}</span>
-          {type === 'yearLevel' ? <SelectMenu ariaLabel={label} required value={form[name] ?? ''} onChange={(value) => setForm({ ...form, yearLevel: value, sectionId: '' })} options={[...((refs.programs ?? []).find((program) => program._id === form.programId)?.yearLevels ?? []).map((year) => ({ value: year, label: `${year}${year % 10 === 1 && year % 100 !== 11 ? 'st' : year % 10 === 2 && year % 100 !== 12 ? 'nd' : year % 10 === 3 && year % 100 !== 13 ? 'rd' : 'th'} year` })), { value: 'irregular', label: 'Irregular' }]} /> : ['users', 'programs', 'sections', 'departments'].includes(type) ? <SelectMenu ariaLabel={label} disabled={(editing && name === 'userId') || (name === 'sectionId' && form.yearLevel === 'irregular')} required={name !== 'sectionId' && !(editing && name === 'userId')} value={form[name] ?? ''} onChange={(value) => setForm({ ...form, [name]: value, ...(name === 'programId' ? { yearLevel: '', sectionId: '' } : {}) })} options={[...(name === 'sectionId' ? [{ value: '', label: 'None' }] : []), ...options(type)]} /> : <input aria-label={label} required={!['middleName', 'birthDate', 'phone', 'contactEmail'].includes(name)} type={type === 'phone' ? 'tel' : type === 'date' ? 'date' : type === 'email' ? 'email' : type === 'number' ? 'number' : 'text'} inputMode={name === 'studentNumber' ? 'numeric' : type === 'phone' ? 'tel' : undefined} pattern={name === 'studentNumber' ? '\\d{4}-\\d{6}' : type === 'phone' ? '(?:\\+639\\d{9}|09\\d{9})' : undefined} title={name === 'studentNumber' ? 'Use the format 0000-000000.' : type === 'phone' ? 'Use +639XXXXXXXXX or 09XXXXXXXXX.' : undefined} placeholder={name === 'studentNumber' ? '0000-000000' : type === 'phone' ? '+639XXXXXXXXX' : undefined} maxLength={name === 'studentNumber' ? 11 : type === 'phone' ? 13 : undefined} max={type === 'date' ? maxBirthDate : undefined} min={type === 'number' ? 1 : undefined} value={accountFields.has(name) ? selectedAccount?.[name] ?? '' : form[name] ?? ''} readOnly={accountFields.has(name)} onChange={accountFields.has(name) ? undefined : (event) => updateField(name, event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-800 read-only:cursor-default read-only:bg-slate-50 dark:border-[#273e7a] dark:bg-[#132247] dark:text-white dark:read-only:bg-white/5" />}
+          {type === 'yearLevel' ? <SelectMenu ariaLabel={label} required value={form[name] ?? ''} onChange={(value) => setForm({ ...form, yearLevel: value, sectionId: '' })} options={[...((refs.programs ?? []).find((program) => program._id === form.programId)?.yearLevels ?? []).map((year) => ({ value: year, label: `${year}${year % 10 === 1 && year % 100 !== 11 ? 'st' : year % 10 === 2 && year % 100 !== 12 ? 'nd' : year % 10 === 3 && year % 100 !== 13 ? 'rd' : 'th'} year` })), { value: 'irregular', label: 'Irregular' }]} />
+            : ['users', 'programs', 'sections', 'departments'].includes(type) ? <SelectMenu ariaLabel={label} disabled={(editing && name === 'userId') || (name === 'sectionId' && form.yearLevel === 'irregular')} required={name !== 'sectionId' && !(editing && name === 'userId')} value={form[name] ?? ''} onChange={(value) => setForm({ ...form, [name]: value, ...(name === 'programId' ? { yearLevel: '', sectionId: '' } : {}) })} options={[...(name === 'sectionId' ? [{ value: '', label: 'None' }] : []), ...options(type)]} />
+              : type === 'phone' ? <div className="mt-1 flex overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-[#273e7a] dark:bg-[#132247]"><span aria-hidden="true" className="inline-flex items-center border-r border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-600 dark:border-[#273e7a] dark:bg-white/5 dark:text-blue-200">+63</span><input aria-label={label} type="tel" inputMode="numeric" pattern={'9\\d{9}'} title="Enter the 10-digit mobile number after +63." placeholder="9171234567" maxLength={10} value={(form.phone ?? '').slice(3)} onChange={(event) => updateField(name, event.target.value)} className="min-w-0 flex-1 px-3.5 py-2.5 text-xs text-slate-800 outline-none dark:text-white" /></div>
+                : <input aria-label={label} required={!['middleName', 'birthDate', 'phone', 'contactEmail'].includes(name)} type={type === 'date' ? 'date' : type === 'email' ? 'email' : type === 'number' ? 'number' : 'text'} inputMode={name === 'studentNumber' ? 'numeric' : undefined} pattern={name === 'studentNumber' ? '\\d{4}-\\d{6}' : undefined} title={name === 'studentNumber' ? 'Use the format 0000-000000.' : undefined} placeholder={name === 'studentNumber' ? '0000-000000' : undefined} maxLength={name === 'studentNumber' ? 11 : undefined} max={type === 'date' ? maxBirthDate : undefined} min={type === 'number' ? 1 : undefined} value={accountFields.has(name) ? selectedAccount?.[name] ?? '' : form[name] ?? ''} readOnly={accountFields.has(name)} onChange={accountFields.has(name) ? undefined : (event) => updateField(name, event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-800 read-only:cursor-default read-only:bg-slate-50 dark:border-[#273e7a] dark:bg-[#132247] dark:text-white dark:read-only:bg-white/5" />}
           {showValidation && validationErrors[name] && <p className="mt-1 text-xs font-medium normal-case text-rose-700 dark:text-rose-300">{validationErrors[name]}</p>}
         </div>)}</div>
         <div className="mt-5 flex justify-end gap-2.5">{kind === 'student' && <button type="button" onClick={closeForm} disabled={saving} className="rounded-lg border border-slate-300 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-[#273e7a] dark:text-blue-100 dark:hover:bg-white/10">Cancel</button>}<button type="submit" disabled={saving} className="rounded-lg bg-[#273a72] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#1c2e5b] disabled:opacity-50 dark:bg-[#ebb12a] dark:text-[#111e3e] dark:hover:bg-[#f5b731]">{saving ? 'Saving…' : editing ? 'Save Profile Changes' : 'Create Profile'}</button></div>
