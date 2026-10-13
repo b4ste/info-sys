@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import Icon from '../../components/Icon.jsx'
 import { EmptyState, LoadingState, PageHeader, StatusBadge } from '../../components/Page.jsx'
 import { api, apiAll } from '../../services/api.js'
 import { formatGradePoint } from '../../utils/gradeScale.js'
@@ -77,8 +78,9 @@ export default function FinalGradesPage() {
       />
 
       <div className="rounded-xl border border-blue-200/60 dark:border-[#273e7a] bg-blue-50/70 dark:bg-[#192d5c] p-4 text-xs text-[#273a72] dark:text-blue-100 flex items-center justify-between gap-3">
+        <Icon name="info" className="size-4 shrink-0" />
         <span>
-          ℹ️ Saved grades remain as Draft until submitted, finalized, and published in{' '}
+          Saved grades remain as Draft until submitted, finalized, and published in{' '}
           <Link to="/faculty/classes" className="font-bold underline text-[#273a72] dark:text-[#ebb12a]">
             My classes
           </Link>.

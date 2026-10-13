@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from './Icon.jsx'
 
 export default function ThemeToggle({ className = '' }) {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
@@ -15,9 +16,10 @@ export default function ThemeToggle({ className = '' }) {
       type="button"
       onClick={toggle}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-      className={className || "rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"}
+      className={className || "inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"}
     >
-      {dark ? '☀ Light' : '☾ Dark'}
+      <Icon name={dark ? 'sun' : 'moon'} />
+      <span>{dark ? 'Light' : 'Dark'}</span>
     </button>
   )
 }

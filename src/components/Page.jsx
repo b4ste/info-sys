@@ -1,3 +1,5 @@
+import Icon from './Icon.jsx'
+
 export function PageHeader({ eyebrow, title, description, children }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4 pb-1">
@@ -33,7 +35,7 @@ export function Notice({ error, message }) {
           : 'bg-emerald-50 text-emerald-900 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800/80'
       }`}
     >
-      <span className="text-base shrink-0">{isErr ? '⚠️' : '✅'}</span>
+      <Icon name={isErr ? 'alert' : 'check'} className="size-5 shrink-0" />
       <p className="flex-1">{error || message}</p>
     </div>
   )

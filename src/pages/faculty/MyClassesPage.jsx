@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import Icon from '../../components/Icon.jsx'
 import { EmptyState, LoadingState, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
 import { useApiList } from '../../hooks/useApiList.js'
 
@@ -59,15 +60,17 @@ export default function MyClassesPage() {
               <div className="mt-5 pt-3 border-t border-slate-100 dark:border-white/5 flex flex-wrap gap-2.5">
                 <Link
                   to={`/faculty/classes/${item._id}/roster`}
-                  className="rounded-lg border border-slate-300 dark:border-[#273e7a] bg-white dark:bg-[#132247] px-3.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-blue-100 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-[#273e7a] bg-white dark:bg-[#132247] px-3.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-blue-100 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
                 >
-                  👥 View Class Roster
+                  <Icon name="users" />
+                  View Class Roster
                 </Link>
                 <Link
                   to={`/faculty/classes/${item._id}/grades`}
-                  className="rounded-lg bg-[#273a72] dark:bg-[#ebb12a] px-3.5 py-1.5 text-xs font-bold text-white dark:text-[#111e3e] hover:bg-[#1c2e5b] dark:hover:bg-[#f5b731] transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#273a72] dark:bg-[#ebb12a] px-3.5 py-1.5 text-xs font-bold text-white dark:text-[#111e3e] hover:bg-[#1c2e5b] dark:hover:bg-[#f5b731] transition-colors"
                 >
-                  📝 Enter & Publish Grades
+                  <Icon name="grades" />
+                  Enter & Publish Grades
                 </Link>
               </div>
             </article>

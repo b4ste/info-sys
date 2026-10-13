@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import { Notice, PageHeader } from '../components/Page.jsx'
 import { useAuth } from '../context/useAuth.js'
 import { api } from '../services/api.js'
@@ -106,7 +107,7 @@ export default function ProfilePage() {
           {isStudent ? (
             <div className="rounded-xl border border-slate-200 dark:border-[#273e7a] bg-white dark:bg-[#16264f] p-6 shadow-xs">
               <h3 className="text-sm font-bold uppercase tracking-wider text-[#273a72] dark:text-[#ebb12a] flex items-center gap-2">
-                <span>📞</span>
+                <Icon name="phone" className="size-4" />
                 <span>Official Contact Details</span>
               </h3>
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import Icon from './Icon.jsx'
 
 export default function SelectMenu({
   value = '',
@@ -165,9 +166,7 @@ export default function SelectMenu({
               >
                 <span className="truncate">{option.label}</span>
                 {String(option.value) === String(value) && (
-                  <span aria-hidden="true" className="text-emerald-600 dark:text-emerald-400 font-bold">
-                    ✓
-                  </span>
+                  <Icon name="check" className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 )}
               </button>
             ))

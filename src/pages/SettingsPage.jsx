@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from '../components/Icon.jsx'
 import PasswordInput from '../components/PasswordInput.jsx'
 import { Notice, PageHeader } from '../components/Page.jsx'
 import { useAuth } from '../context/useAuth.js'
@@ -44,8 +45,9 @@ export default function SettingsPage() {
       <Notice error={error} message={message} />
 
       {user.mustChangePassword && (
-        <div className="rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 p-4 text-xs font-semibold text-amber-900 dark:text-amber-200">
-          ⚠️ Action required: You are currently using a temporary password. Please set a new permanent password to secure your account.
+        <div className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 p-4 text-xs font-semibold text-amber-900 dark:text-amber-200">
+          <Icon name="alert" className="mt-0.5 size-4 shrink-0" />
+          <span>Action required: You are currently using a temporary password. Please set a new permanent password to secure your account.</span>
         </div>
       )}
 

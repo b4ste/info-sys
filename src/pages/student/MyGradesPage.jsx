@@ -1,3 +1,4 @@
+import Icon from '../../components/Icon.jsx'
 import { EmptyState, LoadingState, PageHeader, Pager, StatusBadge } from '../../components/Page.jsx'
 import { useApiList } from '../../hooks/useApiList.js'
 import { formatGradePoint } from '../../utils/gradeScale.js'
@@ -106,8 +107,9 @@ export default function MyGradesPage() {
                 )}
 
                 {grade.revisions?.length > 0 && (
-                  <p className="mt-3 text-[11px] font-medium text-[#273a72] dark:text-[#ebb12a]">
-                    ℹ️ {grade.revisions.length} approved correction{grade.revisions.length > 1 ? 's' : ''} on official record.
+                  <p className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-[#273a72] dark:text-[#ebb12a]">
+                    <Icon name="info" className="size-3.5 shrink-0" />
+                    {grade.revisions.length} approved correction{grade.revisions.length > 1 ? 's' : ''} on official record.
                   </p>
                 )}
               </article>
