@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 import { z } from 'zod'
+import Faculty from '../models/Faculty.js'
+import Student from '../models/Student.js'
 import User from '../models/User.js'
 import { audit } from '../services/academicService.js'
 import { generateTemporaryPassword } from '../services/accountInvitation.js'
@@ -105,6 +107,8 @@ export async function changeUserStatus(request, response) {
   }
   user.status = parsed.data.status
   await user.save()
+  if (user.role === 'student') await Student.updateOne({ userId: user.id }, { status: user.status })
+  if (user.role === 'faculty') await Faculty.updateOne({ userId: user.id }, { status: user.status })
   await audit(request.user.id, 'account.status', 'User', user.id, { status: user.status })
   return response.json({ success: true, data: { user } })
 }
