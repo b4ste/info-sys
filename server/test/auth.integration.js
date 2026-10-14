@@ -14,8 +14,7 @@ let baseUrl
 let adminCookie
 let studentCookie
 let studentId
-const invitations = []
-let failInvitation = false
+let temporaryPassword
 
 async function request(path, { cookie, method = 'GET', body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -40,10 +39,7 @@ before(async () => {
   await User.create({ email: 'admin@test.example', passwordHash, role: 'admin', mustChangePassword: false })
   const student = await User.create({ email: 'student@test.example', passwordHash, role: 'student', mustChangePassword: false })
   studentId = student.id
-  server = createApp({ jwtSecret: secret, sendAccountInvitation: async (invitation) => {
-    if (failInvitation) throw new Error('Mail service failed')
-    invitations.push(invitation)
-  } }).listen(0)
+  server = createApp({ jwtSecret: secret }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   baseUrl = `http://127.0.0.1:${server.address().port}`
   const adminLogin = await signIn('admin@test.example', password)
@@ -68,14 +64,13 @@ test('students cannot list or create accounts; admin can', async () => {
   assert.equal(created.response.status, 201)
   assert.equal(created.data.data.user.name, 'New M Faculty')
   assert.equal(created.data.data.user.middleName, 'M')
-  assert.equal(invitations[0].name, 'New M Faculty')
   assert.equal(created.data.data.user.role, 'faculty')
+  assert.equal(created.data.data.user.status, 'active')
+  temporaryPassword = created.data.data.temporaryPassword
+  assert.match(temporaryPassword, /[A-Z]/)
+  assert.match(temporaryPassword, /[a-z]/)
+  assert.match(temporaryPassword, /[^A-Za-z0-9\s]/)
   assert.equal('passwordHash' in created.data.data.user, false)
-  assert.equal(invitations.length, 1)
-  assert.equal(invitations[0].email, 'new@test.example')
-  assert.match(invitations[0].password, /[A-Z]/)
-  assert.match(invitations[0].password, /[a-z]/)
-  assert.match(invitations[0].password, /[^A-Za-z0-9\s]/)
 
   const renamed = await request(`/api/users/${created.data.data.user._id}/name`, { cookie: adminCookie, method: 'PATCH', body: { firstName: 'updated', middleName: '', lastName: 'faculty' } })
   assert.equal(renamed.response.status, 200)
@@ -88,14 +83,14 @@ test('students cannot list or create accounts; admin can', async () => {
 })
 
 test('temporary passwords must be changed before protected resource access', async () => {
-  const login = await signIn('new@test.example', invitations[0].password)
+  const login = await signIn('new@test.example', temporaryPassword)
   assert.equal(login.response.status, 200)
   const cookie = login.response.headers.get('set-cookie').split(';')[0]
   const denied = await request('/api/departments', { cookie })
   assert.equal(denied.response.status, 403)
   assert.equal(denied.data.error.code, 'PASSWORD_CHANGE_REQUIRED')
 
-  const changed = await request('/api/auth/change-password', { cookie, method: 'POST', body: { currentPassword: invitations[0].password, newPassword: 'Bb!' } })
+  const changed = await request('/api/auth/change-password', { cookie, method: 'POST', body: { currentPassword: temporaryPassword, newPassword: 'Bb!' } })
   assert.equal(changed.response.status, 200)
   const newCookie = changed.response.headers.get('set-cookie').split(';')[0]
   const allowed = await request('/api/departments', { cookie: newCookie })
@@ -155,15 +150,12 @@ test('duplicate email is rejected', async () => {
   assert.equal(duplicate.response.status, 409)
 })
 
-test('failed invitation does not leave an account behind', async () => {
-  failInvitation = true
-  try {
-    const failed = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'Mail', lastName: 'Failure', email: 'mail-failure@test.example', role: 'student' } })
-    assert.equal(failed.response.status, 502)
-    assert.equal(await User.countDocuments({ email: 'mail-failure@test.example' }), 0)
-  } finally {
-    failInvitation = false
-  }
+test('account creation does not depend on email delivery', async () => {
+  const created = await request('/api/users', { cookie: adminCookie, method: 'POST', body: { firstName: 'Mail', lastName: 'Disabled', email: 'mail-disabled@test.example', role: 'student' } })
+  assert.equal(created.response.status, 201)
+  assert.equal(created.data.data.user.status, 'active')
+  assert.match(created.data.data.temporaryPassword, /[A-Za-z]/)
+  assert.equal(await User.countDocuments({ email: 'mail-disabled@test.example' }), 1)
 })
 
 test('academic resources require admin writes and validate program relationships', async () => {

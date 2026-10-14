@@ -55,13 +55,10 @@ export async function listUsers(request, response) {
   return response.json({ success: true, data: { items, page, limit, total } })
 }
 
-export function createUser(sendAccountInvitation) {
+export function createUser() {
   return async function handleCreateUser(request, response) {
     const parsed = createSchema.safeParse(request.body)
     if (!parsed.success) return validationError(response, parsed.error.flatten().fieldErrors)
-    if (!sendAccountInvitation) {
-      return response.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: 'Account email is not configured. Set up the email sender before creating accounts.' } })
-    }
 
     const { firstName, middleName, lastName, email, role } = parsed.data
     const password = generateTemporaryPassword()
@@ -73,22 +70,12 @@ export function createUser(sendAccountInvitation) {
       email: email.toLowerCase(),
       passwordHash: await bcrypt.hash(password, 12),
       role,
-      status: 'inactive',
+      status: 'active',
       mustChangePassword: true,
     })
 
-    try {
-      await sendAccountInvitation({ email: user.email, name: user.name, password })
-    } catch (error) {
-      console.error('Account invitation failed:', error.message)
-      await User.deleteOne({ _id: user.id, status: 'inactive' })
-      return response.status(502).json({ success: false, error: { code: 'EMAIL_DELIVERY_FAILED', message: 'The invitation email could not be sent, so the account was not created. Check the email service settings and try again.' } })
-    }
-
-    user.status = 'active'
-    await user.save()
     await audit(request.user.id, 'account.created', 'User', user.id, { role: user.role })
-    return response.status(201).json({ success: true, data: { user } })
+    return response.status(201).json({ success: true, data: { user, temporaryPassword: password } })
   }
 }
 

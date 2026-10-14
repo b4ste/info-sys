@@ -58,9 +58,9 @@ export default function UsersPage() {
     event.preventDefault()
     setBusy(true); setError(''); setMessage('')
     try {
-      await api('/users', { method: 'POST', body: JSON.stringify({ ...newName, email, role }) })
+      const data = await api('/users', { method: 'POST', body: JSON.stringify({ ...newName, email, role }) })
       setNewName(emptyName); setEmail('')
-      setMessage(`Account created. A temporary password was emailed to ${email}. Add its academic profile under Students or Faculty.`)
+      setMessage(`Account created. Temporary password: ${data.temporaryPassword}. The user must change it after signing in. Add its academic profile under Students or Faculty.`)
       await list.refresh()
     } catch (requestError) { setError(requestError.message) }
     finally { setBusy(false) }
@@ -98,9 +98,9 @@ export default function UsersPage() {
       <div className="mt-4 grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
         <label className="text-sm font-medium">Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
         <div className="text-sm font-medium">Role<SelectMenu ariaLabel="Role" value={role} onChange={setRole} options={[{ value: 'student', label: 'Student' }, { value: 'faculty', label: 'Faculty' }, { value: 'admin', label: 'Admin' }]} /></div>
-        <button type="submit" disabled={busy} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Sending email…' : 'Create account'}</button>
+        <button type="submit" disabled={busy} className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Creating…' : 'Create account'}</button>
       </div>
-      <p className="mt-3 text-xs text-slate-500">A random temporary password will be sent to this email address. The user must change it after signing in.</p>
+      <p className="mt-3 text-xs text-slate-500">A temporary password will be shown after creation. The user must change it after signing in.</p>
     </form>
     <div className="mt-7 flex flex-wrap items-end justify-between gap-4">
       <input aria-label="Search accounts" placeholder="Search name or email" value={search} onChange={(event) => { setSearch(event.target.value); list.setPage(1) }} className="w-full max-w-lg rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
