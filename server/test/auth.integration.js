@@ -4,6 +4,8 @@ import { after, before, test } from 'node:test'
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 import { createApp } from '../src/app.js'
+import Faculty from '../src/models/Faculty.js'
+import Student from '../src/models/Student.js'
 import User from '../src/models/User.js'
 import { getTestDatabaseUri } from './testDatabase.js'
 
@@ -143,6 +145,27 @@ test('inactive accounts cannot log in or use an existing session', async () => {
 
   const session = await request('/api/auth/me', { cookie: studentCookie })
   assert.equal(session.response.status, 401)
+})
+
+test('account status changes are reflected in student and faculty directories', async () => {
+  const studentUser = await User.create({ email: 'directory-student@test.example', passwordHash: await bcrypt.hash(password, 12), role: 'student', mustChangePassword: false })
+  const facultyUser = await User.create({ email: 'directory-faculty@test.example', passwordHash: await bcrypt.hash(password, 12), role: 'faculty', mustChangePassword: false })
+  const student = await Student.create({ userId: studentUser.id, studentNumber: '1000-000001', firstName: 'Directory', lastName: 'Student', contactEmail: studentUser.email, programId: new mongoose.Types.ObjectId(), yearLevel: 1 })
+  const faculty = await Faculty.create({ userId: facultyUser.id, employeeNumber: 'EMP-000001', firstName: 'Directory', lastName: 'Faculty', departmentId: new mongoose.Types.ObjectId(), contactEmail: facultyUser.email })
+
+  for (const user of [studentUser, facultyUser]) {
+    const response = await request(`/api/users/${user.id}/status`, { cookie: adminCookie, method: 'PATCH', body: { status: 'inactive' } })
+    assert.equal(response.response.status, 200)
+  }
+  assert.equal((await Student.findById(student.id)).status, 'inactive')
+  assert.equal((await Faculty.findById(faculty.id)).status, 'inactive')
+
+  for (const user of [studentUser, facultyUser]) {
+    const response = await request(`/api/users/${user.id}/status`, { cookie: adminCookie, method: 'PATCH', body: { status: 'active' } })
+    assert.equal(response.response.status, 200)
+  }
+  assert.equal((await Student.findById(student.id)).status, 'active')
+  assert.equal((await Faculty.findById(faculty.id)).status, 'active')
 })
 
 test('duplicate email is rejected', async () => {
