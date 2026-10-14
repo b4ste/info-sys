@@ -32,18 +32,12 @@ export function AuthProvider({ children }) {
     return data
   }
 
-  async function verifyOtp(challengeToken, code, rememberOtp = false) {
-    const data = await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ challengeToken, code, rememberOtp }) })
-    setUser(data.user)
-    return data.user
-  }
-
   async function logout() {
     await api('/auth/logout', { method: 'POST' })
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, setUser, loading, login, verifyOtp, logout }}>
+  return <AuthContext.Provider value={{ user, setUser, loading, login, logout }}>
     {loading ? <div role="status" className="grid min-h-screen place-items-center text-slate-600">Checking your session…</div> : children}
   </AuthContext.Provider>
 }

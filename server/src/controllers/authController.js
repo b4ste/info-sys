@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import User from '../models/User.js'
@@ -16,7 +16,6 @@ const cookieName = 'sis_session'
 const otpTrustCookieName = 'sis_otp_trust'
 const maxFailedLogins = 5
 const loginCooldownMs = 10 * 60 * 1000
-const otpLifetimeMs = 10 * 60 * 1000
 const maxOtpAttempts = 5
 const otpTrustLifetimeMs = 60 * 60 * 1000
 
@@ -47,21 +46,10 @@ function lockedLogin(response, lockedUntil) {
   })
 }
 
-export function createAuthController({ jwtSecret, production, sendLoginOtp }) {
+export function createAuthController({ jwtSecret, production }) {
   function issueSession(response, user) {
     const token = jwt.sign({ v: user.sessionVersion }, jwtSecret, { subject: user.id, expiresIn: '8h', algorithm: 'HS256' })
     response.cookie(cookieName, token, { ...cookieOptions(production), maxAge: 8 * 60 * 60 * 1000 })
-  }
-
-  function hasTrustedOtp(request, user) {
-    const token = request.cookies?.[otpTrustCookieName]
-    if (!token) return false
-    try {
-      const payload = jwt.verify(token, jwtSecret, { algorithms: ['HS256'], audience: 'otp-trust' })
-      return payload.sub === user.id
-    } catch {
-      return false
-    }
   }
 
   return {
@@ -111,31 +99,8 @@ export function createAuthController({ jwtSecret, production, sendLoginOtp }) {
       }
 
       await User.updateOne({ _id: user.id }, { $set: { failedLoginAttempts: 0, loginLockedUntil: null } })
-      if (hasTrustedOtp(request, user)) {
-        issueSession(response, user)
-        return response.json({ success: true, data: { user: user.toJSON() } })
-      }
-      if (!sendLoginOtp) {
-        return response.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: 'Sign-in email is not configured.' } })
-      }
-
-      const challengeToken = randomBytes(32).toString('hex')
-      const code = randomInt(1_000_000).toString().padStart(6, '0')
-      const hashedChallenge = challengeHash(challengeToken)
-      await User.updateOne({ _id: user.id, status: 'active' }, { $set: {
-        loginOtpChallengeHash: hashedChallenge,
-        loginOtpCodeHash: codeHash(jwtSecret, challengeToken, code),
-        loginOtpExpiresAt: new Date(Date.now() + otpLifetimeMs),
-        loginOtpAttempts: 0,
-      } })
-      try {
-        await sendLoginOtp({ email: user.email, code })
-      } catch (error) {
-        console.error('Sign-in code email failed:', error.message)
-        await User.updateOne({ _id: user.id, loginOtpChallengeHash: hashedChallenge }, { $unset: { loginOtpChallengeHash: '', loginOtpCodeHash: '', loginOtpExpiresAt: '' }, $set: { loginOtpAttempts: 0 } })
-        return response.status(502).json({ success: false, error: { code: 'OTP_EMAIL_FAILED', message: 'The sign-in code could not be emailed. Please try again.' } })
-      }
-      return response.json({ success: true, data: { otpRequired: true, challengeToken, email: user.email } })
+      issueSession(response, user)
+      return response.json({ success: true, data: { user: user.toJSON() } })
     },
     async verifyOtp(request, response) {
       const parsed = verifyOtpSchema.safeParse(request.body)

@@ -5,13 +5,10 @@ import ThemeToggle from '../../components/ThemeToggle.jsx'
 import { useAuth } from '../../context/useAuth.js'
 
 export default function LoginPage() {
-  const { user, login, verifyOtp } = useAuth()
+  const { user, login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rememberOtp, setRememberOtp] = useState(false)
-  const [challenge, setChallenge] = useState(null)
-  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -43,17 +40,9 @@ export default function LoginPage() {
     setError('')
     setBusy(true)
     try {
-      if (challenge) {
-        const signedIn = await verifyOtp(challenge.token, code, rememberOtp)
-        navigate(`/${signedIn.role}`, { replace: true })
-      } else {
-        const result = await login(email, password)
-        if (result.user) {
-          navigate(`/${result.user.role}`, { replace: true })
-        } else {
-          setChallenge({ token: result.challengeToken, email: result.email })
-          setPassword('')
-        }
+      const result = await login(email, password)
+      if (result.user) {
+        navigate(`/${result.user.role}`, { replace: true })
       }
     } catch (requestError) {
       setError(requestError.message)
@@ -74,7 +63,6 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => {
                   setAppsOpen((prev) => !prev)
-                  setNotifsOpen(false)
                   setHelpOpen(false)
                 }}
                 className={`p-1.5 rounded-lg text-white/90 hover:text-white hover:bg-white/15 transition-all focus:outline-none cursor-pointer ${
@@ -337,47 +325,13 @@ export default function LoginPage() {
             </div>
 
             <p className="mt-1.5 text-xs text-slate-600 dark:text-[#dbeafe] font-medium">
-              {challenge ? 'Enter your verification security code' : 'Sign in to access your student portal and records'}
+              Sign in to access your student portal and records
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={submit} className="p-6 sm:p-7 space-y-4">
-            {challenge ? (
-              <>
-                <div className="rounded-lg bg-blue-50/90 dark:bg-[#14234b] border border-blue-200 dark:border-[#3e599e] p-3 text-xs text-blue-900 dark:text-[#dbeafe] font-medium">
-                  Enter the six-digit code sent to <strong className="font-bold text-[#273a72] dark:text-[#ebb12a]">{challenge.email}</strong>. It expires in 10 minutes. Check your spam folder if needed.
-                </div>
-                <div>
-                  <label htmlFor="login-code" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-[#e0edff]">
-                    Verification code
-                  </label>
-                  <input
-                    id="login-code"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]{6}"
-                    maxLength={6}
-                    required
-                    value={code}
-                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="w-full rounded-lg border border-slate-300 dark:border-[#3a569b] bg-white dark:bg-[#14234b] px-3.5 py-2.5 tracking-widest text-center text-lg font-mono font-bold text-slate-900 dark:text-[#ffffff] outline-none focus:border-[#273a72] dark:focus:border-[#ebb12a] focus:ring-2 focus:ring-[#273a72]/20 dark:focus:ring-[#ebb12a]/30"
-                    placeholder="000000"
-                  />
-                </div>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-700 dark:text-[#e0edff] font-medium">
-                  <input
-                    type="checkbox"
-                    checked={rememberOtp}
-                    onChange={(event) => setRememberOtp(event.target.checked)}
-                    className="size-4 rounded accent-[#273a72] dark:accent-[#ebb12a]"
-                  />
-                  Skip email codes on this browser for 1 hour
-                </label>
-              </>
-            ) : (
-              <>
+            <>
                 <div>
                   <label htmlFor="email" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-[#e0edff]">
                     Email / Student Account
@@ -438,8 +392,7 @@ export default function LoginPage() {
                     Forgot password?
                   </a>
                 </div>
-              </>
-            )}
+            </>
 
             {error && (
               <div role="alert" className="rounded-lg bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-500/60 p-3 text-xs text-rose-700 dark:text-[#ffe4e6] font-medium flex items-start gap-2 shadow-xs">
@@ -463,8 +416,6 @@ export default function LoginPage() {
                   </svg>
                   <span>Authenticating…</span>
                 </>
-              ) : challenge ? (
-                'Verify Security Code'
               ) : (
                 <>
                   <span>Sign In</span>
@@ -474,16 +425,6 @@ export default function LoginPage() {
                 </>
               )}
             </button>
-
-            {challenge && (
-              <button
-                type="button"
-                onClick={() => { setChallenge(null); setCode(''); setError('') }}
-                className="w-full text-center text-xs font-semibold text-[#273a72] dark:text-[#ebb12a] hover:underline pt-1 cursor-pointer"
-              >
-                &larr; Back to sign in
-              </button>
-            )}
 
             {/* Help / ITSO info */}
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-[#314a8f] text-center">

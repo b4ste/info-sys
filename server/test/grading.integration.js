@@ -22,7 +22,6 @@ let baseUrl
 let enrollment
 let cookies
 let gradeId
-const otpCodes = new Map()
 
 async function call(path, { cookie, method = 'GET', body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, { method, headers: { ...(cookie && { Cookie: cookie }), ...(body && { 'Content-Type': 'application/json' }) }, ...(body && { body: JSON.stringify(body) }) })
@@ -30,11 +29,9 @@ async function call(path, { cookie, method = 'GET', body } = {}) {
 }
 
 async function signIn(email) {
-  const pending = await call('/api/auth/login', { method: 'POST', body: { email, password } })
-  assert.equal(pending.status, 200)
-  const verified = await call('/api/auth/verify-otp', { method: 'POST', body: { challengeToken: pending.data.data.challengeToken, code: otpCodes.get(email) } })
-  assert.equal(verified.status, 200)
-  return verified.cookie
+  const login = await call('/api/auth/login', { method: 'POST', body: { email, password } })
+  assert.equal(login.status, 200)
+  return login.cookie
 }
 
 before(async () => {
@@ -53,7 +50,7 @@ before(async () => {
   const student = await Student.create({ userId: accounts.student.id, studentNumber: 'S001', firstName: 'Test', lastName: 'Student', contactEmail: accounts.student.email, programId: program.id, yearLevel: 1 })
   const offering = await ClassOffering.create({ subjectId: subject.id, academicTermId: term.id, programId: program.id, yearLevel: 1, facultyId: faculty.id, capacity: 1, enrollmentCount: 1, gradeComponents: [{ name: 'Quizzes', weight: 20 }, { name: 'Activities', weight: 30 }, { name: 'Exams', weight: 50 }] })
   enrollment = await Enrollment.create({ studentId: student.id, classOfferingId: offering.id, status: 'approved' })
-  server = createApp({ jwtSecret: 'integration-test-secret-long-enough-for-hs256', sendLoginOtp: async ({ email, code }) => { otpCodes.set(email, code) } }).listen(0)
+  server = createApp({ jwtSecret: 'integration-test-secret-long-enough-for-hs256' }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   baseUrl = `http://127.0.0.1:${server.address().port}`
   cookies = {}
